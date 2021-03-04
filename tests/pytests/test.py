@@ -270,7 +270,7 @@ def testGet(env):
     env.expect('ft.add idx doc 0.1 language arabic payload redislabs fields foo foo').ok()
     env.expect('ft.get idx doc').equal(['foo', 'foo'])
     res = env.cmd('hgetall doc')
-    env.assertEqual(set(res), set(['foo', 'foo', '__score', '0.1', '__language', 'arabic', '__payload', 'redislabs']))
+    env.assertEqual(set(res), set(['foo', 'foo', '__score', '0.1', '__language', 'arabic', '__payload', 'redislabs', '__index', 'idx']))
 
 
 def testDelete(env):
@@ -462,10 +462,8 @@ def testCustomStopwords(env):
                                     'schema', 'foo', 'text'))
 
     #for idx in ('idx', 'idx2', 'idx3'):
-    env.assertOk(r.execute_command(
-        'ft.add', 'idx', 'doc1', 1.0, 'fields', 'foo', 'hello world'))
-    env.assertOk(r.execute_command(
-        'ft.add', 'idx', 'doc2', 1.0, 'fields', 'foo', 'to be or not to be'))
+    r.execute_command('hset', 'doc1', 'foo', 'hello world')
+    r.execute_command('hset', 'doc2', 'foo', 'to be or not to be')
 
     for _ in r.retry_with_rdb_reload():
         waitForIndex(r, 'idx')
@@ -1865,7 +1863,8 @@ def testAlterIndex(env):
     # RS 2.0 reindex and after reload both documents are found
     # for _ in env.retry_with_reload():
     res = env.cmd('FT.SEARCH', 'idx', 'world')
-    env.assertEqual(toSortedFlatList(res), toSortedFlatList([2L, 'doc2', ['f1', 'hello', 'f2', 'world'], 'doc1', ['f1', 'hello', 'f2', 'world']]))
+    env.assertEqual(toSortedFlatList(res), toSortedFlatList([1L, 'doc2', ['f1', 'hello', 'f2', 'world']]))
+    # env.assertEqual(toSortedFlatList(res), toSortedFlatList([2L, 'doc2', ['f1', 'hello', 'f2', 'world'], 'doc1', ['f1', 'hello', 'f2', 'world']]))
     # env.assertEqual([1, 'doc2', ['f1', 'hello', 'f2', 'world']], ret)
 
     env.cmd('FT.ALTER', 'idx', 'SCHEMA', 'ADD', 'f3', 'TEXT', 'SORTABLE')
@@ -2067,7 +2066,7 @@ def testAlias(env):
     env.expect('ft.aliasAdd', 'myIndex').raiseError()
     env.expect('ft.aliasupdate', 'fake_alias', 'imaginary_alias', 'Too_many_args').raiseError()
     env.cmd('ft.aliasAdd', 'myIndex', 'idx')
-    env.cmd('ft.add', 'myIndex', 'doc1', 1.0, 'fields', 't1', 'hello')
+    env.cmd('hset', 'doc1', 't1', 'hello')
     r = env.cmd('ft.search', 'idx', 'hello')
     env.assertEqual([1, 'doc1', ['t1', 'hello']], r)
     r2 = env.cmd('ft.search', 'myIndex', 'hello')
@@ -2085,7 +2084,7 @@ def testAlias(env):
     # the old alias to different index
     env.cmd('ft.aliasAdd', 'myIndex', 'idx2')
     env.cmd('ft.aliasAdd', 'alias2', 'idx2')
-    env.cmd('ft.add', 'myIndex', 'doc2', 1.0, 'fields', 't1', 'hello')
+    env.cmd('hset', 'doc2', 't1', 'hello')
     r = env.cmd('ft.search', 'alias2', 'hello')
     env.assertEqual([1L, 'doc2', ['t1', 'hello']], r)
 
@@ -2099,7 +2098,7 @@ def testAlias(env):
 
     # create a new index and see if we can use the old name
     env.cmd('ft.create', 'idx3', 'ON', 'HASH', 'PREFIX', 1, 'doc3', 'schema', 't1', 'text')
-    env.cmd('ft.add', 'idx3', 'doc3', 1.0, 'fields', 't1', 'foo')
+    env.cmd('hset', 'doc3', 't1', 'foo')
     env.cmd('ft.aliasAdd', 'myIndex', 'idx3')
     # also, check that this works in rdb save
     for _ in env.retry_with_rdb_reload():
@@ -2882,7 +2881,7 @@ def testUnseportedSortableTypeErrorOnTags(env):
     env.expect('FT.ADD idx doc1 1.0 FIELDS f1 foo1 f2 1 f3 foo1 f4 foo1').ok()
     env.expect('FT.ADD idx doc1 1.0 REPLACE PARTIAL FIELDS f2 2 f3 foo2 f4 foo2').ok()
     res = env.cmd('HGETALL doc1')
-    env.assertEqual(toSortedFlatList(res), toSortedFlatList(['f1', 'foo1', 'f2', '2', 'f3', 'foo2', 'f4', 'foo2', '__score', '1.0']))
+    env.assertEqual(toSortedFlatList(res), toSortedFlatList(['f1', 'foo1', 'f2', '2', 'f3', 'foo2', 'f4', 'foo2', '__score', '1.0', '__index', 'idx']))
     res = env.cmd('FT.SEARCH idx *')
     env.assertEqual(toSortedFlatList(res), toSortedFlatList([1L, 'doc1', ['f1', 'foo1', 'f2', '2', 'f3', 'foo2', 'f4', 'foo2']]))
 

@@ -619,6 +619,14 @@ def testCountry(env):
 
     env.expect('ft.search', 'idx1', '*').equal([1L, 'address:1', ['business', 'foo', 'country', 'usa']])
 
+def testIndexOnlyOnIndex(env):
+    conn = getConnectionByEnv(env)
+    env.cmd('ft.create', 'idx1', 'SCHEMA', 't', 'TEXT')
+    env.cmd('ft.create', 'idx2', 'SCHEMA', 't', 'TEXT')
+    env.cmd('FT.ADD', 'idx1', 'doc', 1.0, 'FIELDS', 't', 'foo')
+    env.expect('ft.search', 'idx1', 'foo').equal([1L, 'doc', ['t', 'foo']])
+    env.expect('ft.search', 'idx2', 'foo').equal([0L])
+
 def testIssue1571(env):
     conn = getConnectionByEnv(env)
     env.cmd('ft.create', 'idx',

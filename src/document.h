@@ -71,6 +71,7 @@ typedef struct Document {
 #define DOCUMENT_F_OWNSTRINGS 0x02
 
 #define UNDERSCORE_KEY "__key"
+#define UNDERSCORE_INDEX "__index"
 #define UNDERSCORE_SCORE "__score"
 #define UNDERSCORE_PAYLOAD "__payload"
 #define UNDERSCORE_LANGUAGE "__language"
@@ -89,8 +90,10 @@ typedef struct {
   const char *evalExpr;         // Only add the document if this expression evaluates to true.
   DocumentAddCompleted donecb;  // Callback to invoke when operation is done
 
-  RedisModuleString *keyStr;       // key name for HSET
-  RedisModuleString *scoreStr;     // score string for HSET
+
+  RedisModuleString *indexStr;     // Index name for HSET
+  RedisModuleString *keyStr;       // Key name for HSET
+  RedisModuleString *scoreStr;     // Score string for HSET
   RedisModuleString *languageStr;  // Language string for HSET
 } AddDocumentOptions;
 
@@ -155,7 +158,7 @@ void Document_Dump(const Document *doc);  // LCOV_EXCL_LINE debug
  * Free any copied data within the document. anyCtx is any non-NULL
  * RedisModuleCtx. The reason for requiring a context is more related to the
  * Redis Module API requiring a context for AutoMemory purposes, though in
- * this case, the pointers are already removed from AutoMemory manangement
+ * this case, the pointers are already removed from AutoMemory management
  * anyway.
  *
  * This function also calls Document_Free
@@ -314,7 +317,7 @@ int Document_EvalExpression(RedisSearchCtx *sctx, RedisModuleString *key, const 
  */
 int Redis_SaveDocument(RedisSearchCtx *ctx, const AddDocumentOptions *opts, QueryError *status);
 
-/* Serialzie the document's fields to a redis client */
+/* Serialize the document's fields to a redis client */
 int Document_ReplyFields(RedisModuleCtx *ctx, Document *doc);
 int Document_ReplyAllFields(RedisModuleCtx *ctx, IndexSpec *spec, RedisModuleString *id);
 

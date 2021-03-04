@@ -211,7 +211,8 @@ int Document_ReplyAllFields(RedisModuleCtx *ctx, IndexSpec *spec, RedisModuleStr
     e = RedisModule_CallReplyArrayElement(rep, i);
     const char *str = RedisModule_CallReplyStringPtr(e, &strLen);
     RS_LOG_ASSERT(strLen > 0, "field string cannot be empty");
-    if ((lang_len == strLen && strncasecmp(str, rule->lang_field, strLen) == 0) ||
+    if ((strlen(UNDERSCORE_INDEX) == strLen && strncasecmp(str, UNDERSCORE_INDEX, strLen) == 0) ||
+        (lang_len == strLen && strncasecmp(str, rule->lang_field, strLen) == 0) ||
         (score_len == strLen && strncasecmp(str, rule->score_field, strLen) == 0) ||
         (payload_len == strLen && strncasecmp(str, rule->payload_field, strLen) == 0)) {
       continue;
@@ -278,17 +279,19 @@ void Document_Free(Document *doc) {
   }
 }
 
-#define globalAddRSstringsSize 3
+#define globalAddRSstringsSize 4
 static RedisModuleString *globalAddRSstrings[globalAddRSstringsSize] = {0};
 
 static void initGlobalAddStrings() {
+  const char *Sindex = UNDERSCORE_INDEX;
   const char *Sscore = UNDERSCORE_SCORE;
   const char *Slang = UNDERSCORE_LANGUAGE;
   const char *Spayload = UNDERSCORE_PAYLOAD;
 
-  globalAddRSstrings[0] = RedisModule_CreateString(NULL, Sscore, strlen(Sscore));
-  globalAddRSstrings[1] = RedisModule_CreateString(NULL, Slang, strlen(Slang));
-  globalAddRSstrings[2] = RedisModule_CreateString(NULL, Spayload, strlen(Spayload));
+  globalAddRSstrings[0] = RedisModule_CreateString(NULL, Sindex, strlen(Sindex));
+  globalAddRSstrings[1] = RedisModule_CreateString(NULL, Sscore, strlen(Sscore));
+  globalAddRSstrings[2] = RedisModule_CreateString(NULL, Slang, strlen(Slang));
+  globalAddRSstrings[3] = RedisModule_CreateString(NULL, Spayload, strlen(Spayload));
 }
 
 void freeGlobalAddStrings() {
@@ -305,25 +308,29 @@ int Redis_SaveDocument(RedisSearchCtx *ctx, const AddDocumentOptions *opts, Quer
     initGlobalAddStrings();
   }
 
-  // create an array for key + all field/value + score/language/payload
+  // create an array for key + all field/value + index/score/language/payload
   arrayof(RedisModuleString *) arguments =
-      array_new(RedisModuleString *, 1 + opts->numFieldElems + 6);
+      array_new(RedisModuleString *, 1 + opts->numFieldElems + 8);
 
   arguments = array_append(arguments, opts->keyStr);
   arguments = array_ensure_append_n(arguments, opts->fieldsArray, opts->numFieldElems);
 
+  // add `index name`
+  arguments = array_append(arguments, globalAddRSstrings[0]);
+  arguments = array_append(arguments, opts->indexStr);
+
   if (opts->score != 1.0 || (opts->options & DOCUMENT_ADD_PARTIAL)) {
-    arguments = array_append(arguments, globalAddRSstrings[0]);
+    arguments = array_append(arguments, globalAddRSstrings[1]);
     arguments = array_append(arguments, opts->scoreStr);
   }
 
   if (opts->languageStr) {
-    arguments = array_append(arguments, globalAddRSstrings[1]);
+    arguments = array_append(arguments, globalAddRSstrings[2]);
     arguments = array_append(arguments, opts->languageStr);
   }
 
   if (opts->payload) {
-    arguments = array_append(arguments, globalAddRSstrings[2]);
+    arguments = array_append(arguments, globalAddRSstrings[3]);
     arguments = array_append(arguments, opts->payload);
   }
 

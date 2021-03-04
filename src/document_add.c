@@ -5,7 +5,7 @@
 
 /*
 ## FT.ADD <index> <docId> <score> [NOSAVE] [REPLACE] [PARTIAL] [IF <expr>] [LANGUAGE <lang>]
-[PAYLOAD {payload}] FIELDS <field> <text> ....] Add a documet to the index.
+[PAYLOAD {payload}] FIELDS <field> <text> ....] Add a document to the index.
 
 ## Parameters:
 
@@ -232,6 +232,8 @@ static int doAddDocument(RedisModuleCtx *ctx, RedisModuleString **argv, int argc
     RedisModule_ReplyWithError(ctx, "Unknown index name");
     goto cleanup;
   }
+  sp->ftAddUsed = true;
+  opts.indexStr = argv[1];    // ptr to index name. used for FT.ADD
 
   RedisSearchCtx sctx = {.redisCtx = ctx, .spec = sp};
   rv = RS_AddDocument(&sctx, argv[2], &opts, &status);

@@ -1029,6 +1029,8 @@ IndexSpec *NewIndexSpec(const char *name) {
 
   sp->cascadeDelete = true;
 
+  sp->ftAddUsed = false;
+
   memset(&sp->stats, 0, sizeof(sp->stats));
   return sp;
 }
@@ -1275,7 +1277,7 @@ static void Indexes_ScanProc(RedisModuleCtx *ctx, RedisModuleString *keyname, Re
                              IndexesScanner *scanner) {
   if (key) {
     if (RedisModule_KeyType(key) == REDISMODULE_KEYTYPE_EMPTY) {
-      // this is only possible on crdb database, enpty keys are toombstone
+      // this is only possible on crdb database, empty keys are toombstone
       // and we should just ignore them
       return;
     }
@@ -1559,6 +1561,8 @@ IndexSpec *IndexSpec_CreateFromRdb(RedisModuleCtx *ctx, RedisModuleIO *rdb, int 
   sp->scan_in_progress = false;
 
   sp->cascadeDelete = true;
+
+  sp->ftAddUsed = true; // We do not know if ft.add was used or should it be false?
 
   IndexSpec *oldSpec = dictFetchValue(specDict_g, sp->name);
   if (oldSpec) {
@@ -1923,6 +1927,9 @@ void Indexes_Init(RedisModuleCtx *ctx) {
 SpecOpIndexingCtx *Indexes_FindMatchingSchemaRules(RedisModuleCtx *ctx, RedisModuleString *key,
                                                    bool runFilters,
                                                    RedisModuleString *keyToReadData) {
+  RedisModuleKey *k = NULL;
+  RedisModuleString *index_rms = NULL;
+
   if (!keyToReadData) {
     keyToReadData = key;
   }
@@ -1930,8 +1937,24 @@ SpecOpIndexingCtx *Indexes_FindMatchingSchemaRules(RedisModuleCtx *ctx, RedisMod
   res->specs = dictCreate(&dictTypeHeapStrings, NULL);
   res->specsOps = array_new(SpecOpCtx, 10);
   if (dictSize(specDict_g) == 0) {
-    return res;
+    goto end;
   }
+
+  { // check if hash has field `__index` which specify the index name to add
+    RedisModuleKey *k = RedisModule_OpenKey(ctx, key, REDISMODULE_WRITE);
+    if (RedisModule_HashGet(k, REDISMODULE_HASH_CFIELDS, UNDERSCORE_INDEX, &index_rms, NULL) != REDISMODULE_OK) {
+      goto end;
+    }
+    if (index_rms != NULL) {
+      SpecOpCtx specOp = {  
+        .spec = IndexSpec_Load(ctx, RedisModule_StringPtrLen(index_rms, NULL), 1),
+        .op = SpecOp_Add,
+      };
+      res->specsOps = array_append(res->specsOps, specOp);
+      goto end;
+    }
+  }
+
   dict *specs = res->specs;
 
 #if defined(_DEBUG) && 0
@@ -2002,6 +2025,9 @@ SpecOpIndexingCtx *Indexes_FindMatchingSchemaRules(RedisModuleCtx *ctx, RedisMod
       EvalCtx_Destroy(r);
     }
   }
+end:
+  if (k) RedisModule_CloseKey(k);
+  if (index_rms) RedisModule_FreeString(ctx, index_rms);
   return res;
 }
 

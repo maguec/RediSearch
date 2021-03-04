@@ -247,7 +247,7 @@ typedef struct IndexSpec {
   IndexSpecFmtStrings *indexStrs;
   struct IndexSpecCache *spcache;
 
-  // For index expiretion
+  // For index expiration
   long long timeout;
   RedisModuleTimerID timerId;
   bool isTimerSet;
@@ -265,6 +265,8 @@ typedef struct IndexSpec {
   // in favor on a newer, pending scan
   bool scan_in_progress;
   bool cascadeDelete;  // remove keys when removing spec
+  
+  bool ftAddUsed;   // check for @__index field for index name
 } IndexSpec;
 
 typedef enum SpecOp { SpecOp_Add, SpecOp_Del } SpecOp;
@@ -364,7 +366,7 @@ void IndexSpec_GetStats(IndexSpec *sp, RSIndexStats *stats);
 /*
  * Parse an index spec from redis command arguments.
  * Returns REDISMODULE_ERR if there's a parsing error.
- * The command only receives the relvant part of argv.
+ * The command only receives the relevant part of argv.
  *
  * The format currently is <field> <weight>, <field> <weight> ...
  */
