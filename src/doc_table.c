@@ -27,7 +27,7 @@ DocTable NewDocTable(size_t cap, size_t max_size) {
 }
 
 static inline uint32_t DocTable_GetBucket(const DocTable *t, t_docId docId) {
-  return docId < t->maxSize ? docId : docId % t->maxSize;
+  return t->size == t->maxSize ? docId : docId % t->maxSize;
 }
 
 static inline int DocTable_ValidateDocId(const DocTable *t, t_docId docId) {
