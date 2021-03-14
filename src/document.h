@@ -137,7 +137,7 @@ void Document_Clear(Document *doc);
  *
  * The document must already have the docKey set
  */
-int Document_LoadSchemaFields(Document *doc, RedisSearchCtx *sctx);
+int Document_LoadSchemaFieldHash(Document *doc, RedisSearchCtx *sctx);
 
 /**
  * Load all the fields into the document.

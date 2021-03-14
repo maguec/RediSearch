@@ -88,7 +88,7 @@ void Document_MakeRefOwner(Document *doc) {
   doc->flags |= DOCUMENT_F_OWNREFS;
 }
 
-int Document_LoadSchemaFields(Document *doc, RedisSearchCtx *sctx) {
+int Document_LoadSchemaFieldHash(Document *doc, RedisSearchCtx *sctx) {
   RedisModuleKey *k = RedisModule_OpenKey(sctx->redisCtx, doc->docKey, REDISMODULE_READ);
   int rv = REDISMODULE_ERR;
   if (!k || RedisModule_KeyType(k) != REDISMODULE_KEYTYPE_HASH) {
@@ -96,15 +96,11 @@ int Document_LoadSchemaFields(Document *doc, RedisSearchCtx *sctx) {
   }
 
   size_t nitems = sctx->spec->numFields;
-  if (nitems == 0) {
-    goto done;
-  }
-
   IndexSpec *spec = sctx->spec;
   SchemaRule *rule = spec->rule;
   assert(rule);
   RedisModuleString *payload_rms = NULL;
-  Document_MakeStringsOwner(doc);
+  Document_MakeStringsOwner(doc); // TODO: necessary?
   const char *keyname = (const char *)RedisModule_StringPtrLen(doc->docKey, NULL);
   doc->language = SchemaRule_HashLang(sctx->redisCtx, rule, k, keyname);
   doc->score = SchemaRule_HashScore(sctx->redisCtx, rule, k, keyname);

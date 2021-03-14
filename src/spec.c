@@ -1847,6 +1847,8 @@ int IndexSpec_RegisterType(RedisModuleCtx *ctx) {
   return REDISMODULE_OK;
 }
 
+int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx);
+
 int IndexSpec_UpdateWithHash(IndexSpec *spec, RedisModuleCtx *ctx, RedisModuleString *key) {
   if (!spec->rule) {
     RedisModule_Log(ctx, "warning", "Index spec %s: no rule found", spec->name);
@@ -1857,7 +1859,15 @@ int IndexSpec_UpdateWithHash(IndexSpec *spec, RedisModuleCtx *ctx, RedisModuleSt
   Document doc = {0};
   Document_Init(&doc, key, 1.0, DEFAULT_LANGUAGE);
   // if a key does not exit, is not a hash or has no fields in index schema
-  if (Document_LoadSchemaFields(&doc, &sctx) != REDISMODULE_OK) {
+
+  int rv = REDISMODULE_ERR;
+  // TODO: SchemaRuleType_Any
+  if (spec->rule->type == SchemaRuleType_Hash) {
+    rv = Document_LoadSchemaFieldHash(&doc, &sctx);
+  } else {
+    rv = Document_LoadSchemaFieldJson(&doc, &sctx);
+  }
+  if (rv != REDISMODULE_OK) {
     IndexSpec_DeleteHash(spec, ctx, key);
     Document_Free(&doc);
     return REDISMODULE_ERR;

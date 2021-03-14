@@ -257,6 +257,7 @@ void Document_Dump(const Document *doc) {
 // LCOV_EXCL_STOP
 
 static void AddDocumentCtx_UpdateNoIndex(RSAddDocumentCtx *aCtx, RedisSearchCtx *sctx);
+int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx);
 
 static int AddDocumentCtx_ReplaceMerge(RSAddDocumentCtx *aCtx, RedisSearchCtx *sctx) {
   /**
@@ -264,9 +265,15 @@ static int AddDocumentCtx_ReplaceMerge(RSAddDocumentCtx *aCtx, RedisSearchCtx *s
    * that a new document ID needs to be assigned, and as a consequence, all
    * fields must be reindexed.
    */
+  int rv;
 
   Document_Clear(aCtx->doc);
-  int rv = Document_LoadSchemaFields(aCtx->doc, sctx);
+  // TODO: SchemaRuleType_Any
+  if (sctx->spec->rule->type == SchemaRuleType_Hash) {
+    rv = Document_LoadSchemaFieldHash(aCtx->doc, sctx);
+  } else {
+    rv = Document_LoadSchemaFieldJson(aCtx->doc, sctx);
+  }
   if (rv != REDISMODULE_OK) {
     QueryError_SetError(&aCtx->status, QUERY_ENODOC, "Could not load existing document");
     aCtx->donecb(aCtx, sctx->redisCtx, aCtx->donecbData);
