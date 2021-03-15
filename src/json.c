@@ -11,9 +11,9 @@ static RSLanguage SchemaRule_JsonLanguage(RedisModuleCtx *ctx, const SchemaRule 
 
   const RedisJSON *jsonData;
   const char *lang_s;
-  if (JSON_GetSinglePath(ctx, keyName, rule->lang_field, &jsonData) != REDISMODULE_OK ||
-      JSON_Type(jsonData) != JSON_Str ||
-      JSON_GetString(jsonData, &lang_s, NULL)) {
+  if (RedisJSON_GetSinglePath(ctx, keyName, rule->lang_field, &jsonData) != REDISMODULE_OK ||
+      RedisJSON_Type(jsonData) != JSON_Str ||
+      RedisJSON_GetString(jsonData, &lang_s, NULL)) {
     RedisModule_Log(NULL, "warning", "invalid field %s for key %s", rule->lang_field, keyNameC);
     goto done;
   }
@@ -34,9 +34,9 @@ static RSLanguage SchemaRule_JsonScore(RedisModuleCtx *ctx, const SchemaRule *ru
   }
 
   const RedisJSON *jsonData;
-  if (JSON_GetSinglePath(ctx, keyName, rule->score_field, &jsonData) != REDISMODULE_OK ||
-      JSON_Type(jsonData) != JSON_Number || // TODO: Can this a number as well
-      JSON_GetFloat(jsonData, &score)) {
+  if (RedisJSON_GetSinglePath(ctx, keyName, rule->score_field, &jsonData) != REDISMODULE_OK ||
+      RedisJSON_Type(jsonData) != JSON_Number || // TODO: Can this a number as well
+      RedisJSON_GetFloat(jsonData, &score)) {
     RedisModule_Log(NULL, "warning", "invalid field %s for key %s", rule->score_field,
                                               RedisModule_StringPtrLen(keyName, NULL));
     goto done;
@@ -64,7 +64,7 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
   for (size_t ii = 0; ii < spec->numFields; ++ii) {
     const char *fname = spec->fields[ii].name;
     RedisModuleString *v = NULL;
-    if (JSON_GetSinglePath(ctx, keyNameR, fname, &jsonData) != REDISMODULE_OK) {
+    if (RedisJSON_GetSinglePath(ctx, keyNameR, fname, &jsonData) != REDISMODULE_OK) {
       continue;
     }
     size_t oix = doc->numFields++;
@@ -73,7 +73,7 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
     // on crdt the return value might be the underline value, we must copy it!!!
     // TODO: change `fs->text` to char * ??
     const char *fieldText;
-    JSON_GetString(jsonData, &fieldText, NULL);
+    RedisJSON_GetString(jsonData, &fieldText, NULL);
     doc->fields[oix].text = RedisModule_CreateString(ctx, fieldText, strlen(fieldText));
     // RedisModule_FreeString(ctx, fieldText);
   }
