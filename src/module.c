@@ -31,6 +31,7 @@
 #include "module.h"
 #include "rwlock.h"
 #include "info_command.h"
+#include "rejson_api.h"
 
 #define LOAD_INDEX(ctx, srcname, write)                                                     \
   ({                                                                                        \
@@ -872,6 +873,10 @@ int RediSearch_InitModuleInternal(RedisModuleCtx *ctx, RedisModuleString **argv,
   if (RediSearch_Init(ctx, REDISEARCH_INIT_MODULE) != REDISMODULE_OK) {
     return REDISMODULE_ERR;
   }
+
+  // ReJSON module load
+  // TODO: ensure doesn't fail b/c of module loading order
+  //RM_TRY(RedisJSONInitialize, ctx);
 
   // register trie type
   RM_TRY(DictRegister, ctx);

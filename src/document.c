@@ -265,13 +265,14 @@ static int AddDocumentCtx_ReplaceMerge(RSAddDocumentCtx *aCtx, RedisSearchCtx *s
    * that a new document ID needs to be assigned, and as a consequence, all
    * fields must be reindexed.
    */
-  int rv;
+  int rv = REDISMODULE_ERR;
 
   Document_Clear(aCtx->doc);
+  SchemaRuleType ruleType = sctx->spec->rule->type;
   // TODO: SchemaRuleType_Any
-  if (sctx->spec->rule->type == SchemaRuleType_Hash) {
+  if (ruleType == SchemaRuleType_Hash) {
     rv = Document_LoadSchemaFieldHash(aCtx->doc, sctx);
-  } else {
+  } else if (ruleType == SchemaRuleType_Json) {
     rv = Document_LoadSchemaFieldJson(aCtx->doc, sctx);
   }
   if (rv != REDISMODULE_OK) {
