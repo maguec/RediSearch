@@ -86,9 +86,6 @@ typedef struct RedisJSONAPI_V1 {
      */
 } RedisJSONAPI_V1;
 
-// REJSON APIs
-RedisJSONAPI_V1 *jsonAPI;
-
 //Demo use case 1
 // FT.CREATE idx on json...
 // FT.SEARCH * .. ==> 0 results

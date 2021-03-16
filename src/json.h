@@ -9,6 +9,8 @@
 extern "C" {
 #endif
 
+extern RedisJSONAPI_V1 *jsonAPI;
+
 int GetJSONAPIs(RedisModuleCtx *ctx, int subscribeToModuleChange);
 int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx);
 

@@ -1,6 +1,9 @@
 #include "json.h"
 #include "rmutil/rm_assert.h"
 
+// REJSON APIs
+RedisJSONAPI_V1 *jsonAPI;
+
 /************************************************************************************************/
 
 void ModuleChangeHandler(struct RedisModuleCtx *ctx, RedisModuleEvent e, uint64_t sub, void *data) {
