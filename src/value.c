@@ -604,7 +604,9 @@ int RSValue_SendReply(RedisModuleCtx *ctx, const RSValue *v, int isTyped) {
       return RedisModule_ReplyWithStringBuffer(ctx, v->strval.str, v->strval.len);
     case RSValue_RedisString:
     case RSValue_OwnRstring:
-      return RedisModule_ReplyWithString(ctx, v->rstrval);
+      size_t valueStrLen;
+      const char *valueCStr = RedisModule_StringPtrLen(v->rstrval, &valueStrLen);
+      return RedisModule_ReplyWithStringBuffer(ctx, valueCStr, valueStrLen);
     case RSValue_Number: {
       char buf[128] = {0};
       RSValue_NumToString(v->numval, buf);
