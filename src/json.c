@@ -2,7 +2,7 @@
 #include "rmutil/rm_assert.h"
 
 // REJSON APIs
-RedisJSONAPI_V1 *jsonAPI;
+RedisJSONAPI_V1 *japi;
 
 /************************************************************************************************/
 
@@ -15,7 +15,7 @@ void ModuleChangeHandler(struct RedisModuleCtx *ctx, RedisModuleEvent e, uint64_
     // Need to get the API exported by RedisJSON
     if (strcmp(ei->module_name, "ReJSON") == 0) {
         printf("detected %p loading %s\n", ctx, ei->module_name);
-        if (!jsonAPI && GetJSONAPIs(ctx, 0)) {
+        if (!japi && GetJSONAPIs(ctx, 0)) {
             //TODO: Once registered we can unsubscribe from ServerEvent RedisModuleEvent_ModuleChange
             // Unless we want to hanle ReJSON module unload
         }
@@ -24,9 +24,9 @@ void ModuleChangeHandler(struct RedisModuleCtx *ctx, RedisModuleEvent e, uint64_
 }
 
 int GetJSONAPIs(RedisModuleCtx *ctx, int subscribeToModuleChange) {
-    jsonAPI = NULL;
-    jsonAPI = RedisModule_GetSharedAPI(ctx, "RedisJSON_V1");
-    if (jsonAPI) {
+    japi = NULL;
+    japi = RedisModule_GetSharedAPI(ctx, "RedisJSON_V1");
+    if (japi) {
         return 1;
     } else if (subscribeToModuleChange) {
         RedisModule_SubscribeToServerEvent(ctx,
@@ -38,95 +38,112 @@ int GetJSONAPIs(RedisModuleCtx *ctx, int subscribeToModuleChange) {
 /******************************************************************************************************/
 
 static RSLanguage SchemaRule_JsonLanguage(RedisModuleCtx *ctx, const SchemaRule *rule,
-                                          RedisModuleString *keyName) {
+                                          const RedisJSONKey *jsonKey, const char *keyName) {
   int rv = REDISMODULE_ERR;
   RSLanguage lang = rule->lang_default;
-  const char *keyNameC = RedisModule_StringPtrLen(keyName, NULL);
   if (!rule->lang_field) {
     goto done;
   }
 
-  size_t items;
-  JSONType lang_t;
-  size_t lang_len;
-  const char *lang_s;
-  const RedisJSON *jsonData = jsonAPI->getPath(ctx, keyName, rule->lang_field);
-  if (jsonData == NULL) {
+  JSONType type;
+  size_t count;
+  RedisJSON json = japi->get(jsonKey, rule->lang_field, &type, &count);
+  if (!json || type != JSONType_String) {
     goto done;
   }
 
-  rv = jsonAPI->getInfo(jsonData, &lang_s, &lang_t, &items);
-  if (rv == REDISMODULE_ERR || lang_t != JSONType_String) {
+  char *langStr;
+  if (japi->getString(json, &langStr, NULL) != REDISMODULE_OK) {
     goto done;
   }
-
-  rv = (jsonAPI->getString(jsonData, &lang_s, &lang_len));
-  if (rv == REDISMODULE_ERR || lang_len == 0) {
-    goto done;
-  }
-
   
-  lang = RSLanguage_Find(lang_s);
+  lang = RSLanguage_Find(langStr);
   if (lang == RS_LANG_UNSUPPORTED) {
-    rv = REDISMODULE_ERR;
-    lang = rule->lang_default;
+    goto done;
   }
+
+  rv = REDISMODULE_OK;
 done:
   if (rv == REDISMODULE_ERR) {
-        RedisModule_Log(NULL, "warning", "invalid language for key %s", keyNameC);
+        RedisModule_Log(NULL, "warning", "invalid language for key %s", keyName);
+  }
+  if (json) {
+    japi->close(json);
   }
   return lang;
 }
 
 static RSLanguage SchemaRule_JsonScore(RedisModuleCtx *ctx, const SchemaRule *rule,
-                                          RedisModuleString *keyName) {
+                                       const RedisJSONKey *jsonKey, const char *keyName) {
   int rv = REDISMODULE_ERR;
   double score = rule->score_default;
   if (!rule->score_field) {
     goto done;
   }
 
-  size_t items;
-  JSONType score_t;
-  const char *score_s = NULL;
-  char *score_s_end = NULL;
-  const RedisJSON *jsonData = jsonAPI->getPath(ctx, keyName, rule->score_field);
-  if (jsonData == NULL) {
+  JSONType type;
+  size_t count;
+  const RedisJSON *json = japi->get(jsonKey, rule->score_field, &type, &count);
+  if (json == NULL || (type != JSONType_Float && type != JSONType_Int)) {
     goto done;
   }
 
-  rv = jsonAPI->getInfo(jsonData, &score_s, &score_t, &items);
-  if (rv || items != 1) {
+  if (japi->getFloat(json, &score) != REDISMODULE_OK) {
     goto done;
   }
 
-  switch (score_t) {
-  case JSONType_Double:
-    rv = jsonAPI->getDouble(jsonData, &score);
-    break;
-//  case JSONType_Int:
-//    rv = jsonAPI->getInt(jsonData, &score);
-//    break;
-  case JSONType_String:
-    rv = jsonAPI->getString(jsonData, &score_s, NULL);
-    if (score_s) {
-      score = strtod(score_s, &score_s_end);
-      rv = (*score_s_end == '\0') ? REDISMODULE_OK : REDISMODULE_ERR;
-    }
-    break;  
-  default:
-    break;
-  }
-
+  rv = REDISMODULE_OK;
 done:
   if (rv == REDISMODULE_ERR) {
     RedisModule_Log(NULL, "warning", "invalid field %s for key %s", rule->score_field,
                                               RedisModule_StringPtrLen(keyName, NULL));
   }
+  if (json) {
+    japi->close(json);
+  }
   return score;
 }
 
+/* For POC only */
+/* this function copies the string */
+static RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type) {
+  size_t len;
+  const char *str = JSON_ToString(ctx, json, type, &len);
+  return RedisModule_CreateString(ctx, str, len);
+}
+
+/* this function does not copies the string */
+static const char *JSON_ToString(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type, size_t *len) {
+  // TODO: union
+  char *str = NULL;
+  double dbl;
+  int integer;
+  int boolean;
+
+  switch (type) {
+  case JSONType_String:
+    japi->getString(json, &str, len);
+    return str;
+  /* TODO:
+  case JSONType_Bool:
+    japi->getBoolean(json, &boolean);
+    return boolean ? "1" : "0";
+  case JSONType_Int:
+    japi->getBoolean(json, &integer);
+    return integer;
+  case JSONType_Float:
+    japi->getFloat(json, &dbl);
+    return dbl;
+  */
+  default:
+    break;
+  }
+  return str;
+}
+
+
 int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
+  int rv = REDISMODULE_ERR;
   IndexSpec *spec = sctx->spec;
   SchemaRule *rule = spec->rule;
   RedisModuleCtx *ctx = sctx->redisCtx;
@@ -134,29 +151,29 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
 
   RedisModuleString *payload_rms = NULL;
   Document_MakeStringsOwner(doc); // TODO: necessary??
-  RedisModuleString *keyNameR = doc->docKey;
+  
+  const RedisJSONKey *jsonKey = japi->openKey(ctx, doc->docKey);
+  if (!jsonKey) {
+    goto done;
+  }
 
-  doc->language = SchemaRule_JsonLanguage(sctx->redisCtx, rule, keyNameR);
-  doc->score = SchemaRule_JsonScore(sctx->redisCtx, rule, keyNameR);
+  const char *keyName = RedisModule_StringPtrLen(doc->docKey, NULL);
+  doc->language = SchemaRule_JsonLanguage(sctx->redisCtx, rule, jsonKey, keyName);
+  doc->score = SchemaRule_JsonScore(sctx->redisCtx, rule, jsonKey, keyName);
   // No payload on JSON as RedisJSON does not support binary fields
 
-  size_t items;
-  JSONType jsonType;
   const char *jsonVal;
-  const RedisJSON *jsonData;
+
+  size_t count;
+  JSONType type;
+  const RedisJSON *json;
   doc->fields = rm_calloc(nitems, sizeof(*doc->fields));
   for (size_t ii = 0; ii < spec->numFields; ++ii) {
     const char *fname = spec->fields[ii].name;
 
     // retrive json pointer
-    jsonData = jsonAPI->getPath(ctx, keyNameR, fname);
-    if (!jsonData) {
-      continue;
-    }
-
-    // pull json data
-    if (jsonAPI->getInfo(jsonData, &jsonVal, &jsonType, &items) == REDISMODULE_ERR ||
-                                                                        items != 1) {
+    json = japi->get(ctx, jsonKey, &type, &count);
+    if (!json) {
       continue;
     }
 
@@ -164,11 +181,16 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
     doc->fields[oix].name = rm_strdup(fname);
 
     // on crdt the return value might be the underline value, we must copy it!!!
-    // TODO: change `fs->text` to char * ??
-    const char *fieldText;
-    jsonAPI->getString(jsonData, &fieldText, NULL);
-    doc->fields[oix].text = RedisModule_CreateString(ctx, fieldText, strlen(fieldText));
+    // TODO: change `fs->text` to support hash or json not RedisModuleString
+    doc->fields[oix].text = JSON_ToStringR(ctx, json, type);
+    japi->close(json);
+    // doc->fields[oix].text = RedisModule_CreateString(ctx, str, strLen);
     // RedisModule_FreeString(ctx, fieldText);
   }
-  return REDISMODULE_OK;
+
+done:
+  if (jsonKey) {
+    japi->closeKey(jsonKey);
+  }
+  return rv;
 }

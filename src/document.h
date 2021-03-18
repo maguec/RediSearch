@@ -9,6 +9,7 @@
 #include "byte_offsets.h"
 #include "rmutil/args.h"
 #include "query_error.h"
+// #include "json.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,8 +38,10 @@ extern "C" {
 
 typedef struct {
   const char *name;  // Can either be char or RMString
-  RedisModuleString *text;
   FieldType indexAs;
+  // TODO: union??
+  RedisModuleString *text;  // hash
+  // RS_Json *json;            // json
 } DocumentField;
 
 typedef struct Document {

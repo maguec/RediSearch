@@ -41,15 +41,15 @@ typedef struct RedisJSONAPI_V1 {
    * Return REDISMODULE_OK if RedisJSON is of the correct JSONType,
    * else REDISMODULE_ERR is returned
    **/
-  int (*getInt)(const RedisJSON *path, int *integer);
-  int (*getFloat)(const RedisJSON *path, double *dbl);
-  int (*getBoolean)(const RedisJSON *path, int *boolean);
-  int (*getString)(const RedisJSON *path, char **str, size_t *len);
+  int (*getInt)(const RedisJSON *json, int *integer);
+  int (*getFloat)(const RedisJSON *json, double *dbl);
+  int (*getBoolean)(const RedisJSON *json, int *boolean);
+  int (*getString)(const RedisJSON *json, char **str, size_t *len);
 
-  int (*setInt)(const RedisJSON *path, int integer);
-  int (*setFloat)(const RedisJSON *path, double dbl);
-  int (*setBoolean)(const RedisJSON *path, int boolean);
-  int (*setString)(const RedisJSON *path, const char *str, size_t len);
+  int (*setInt)(const RedisJSON *json, int integer);
+  int (*setFloat)(const RedisJSON *json, double dbl);
+  int (*setBoolean)(const RedisJSON *json, int boolean);
+  int (*setString)(const RedisJSON *json, const char *str, size_t len);
 
   void (*replyWith)(struct RedisModuleCtx* ctx, const RedisJSON *json);
 } RedisJSONAPI_V1;
