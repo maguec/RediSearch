@@ -31,8 +31,10 @@ typedef struct RedisJSONAPI_V1 {
    * Return NULL if path does not exist
    * `count` can be NULL and return 0 for for non array/object
    **/
-  const RedisJSON *(*getJSONFromKey)(const RedisJSONKey *key, const char *path, 
-                                     JSONType *type, size_t *count);
+  const RedisJSON *(*get)(const RedisJSONKey *key, const char *path, 
+                          JSONType *type, size_t *count);
+  const RedisJSON *(*getAt)(const RedisJSON *jsonIn, size_t index, 
+                            JSONType *type, size_t *count);
   void (*closeJSON)(RedisJSON json);
 
   /* RedisJSON value functions
@@ -43,17 +45,13 @@ typedef struct RedisJSONAPI_V1 {
   int (*getFloat)(const RedisJSON *path, double *dbl);
   int (*getBoolean)(const RedisJSON *path, int *boolean);
   int (*getString)(const RedisJSON *path, char **str, size_t *len);
-  int (*getJSONFromArray)(const RedisJSON *jsonIn, size_t index, 
-                          const RedisJSON **jsonOut, JSONType *type, size_t *count);
-  int (*getJSONFromObject)(const RedisJSON *jsonIn, const char *path, 
-                           const RedisJSON **jsonOut, JSONType *type, size_t *count);
 
   int (*setInt)(const RedisJSON *path, int integer);
   int (*setFloat)(const RedisJSON *path, double dbl);
   int (*setBoolean)(const RedisJSON *path, int boolean);
   int (*setString)(const RedisJSON *path, const char *str, size_t len);
 
-  void (*replyWithJSON)(const RedisJSON *json);
+  void (*replyWithJSON)(struct RedisModuleCtx* ctx, const RedisJSON *json);
 } RedisJSONAPI_V1;
 
 // TODO: remove
