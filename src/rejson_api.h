@@ -35,7 +35,7 @@ typedef struct RedisJSONAPI_V1 {
                           JSONType *type, size_t *count);
   const RedisJSON *(*getAt)(const RedisJSON *jsonIn, size_t index, 
                             JSONType *type, size_t *count);
-  void (*closeJSON)(RedisJSON json);
+  void (*close)(RedisJSON json);
 
   /* RedisJSON value functions
    * Return REDISMODULE_OK if RedisJSON is of the correct JSONType,
@@ -51,7 +51,7 @@ typedef struct RedisJSONAPI_V1 {
   int (*setBoolean)(const RedisJSON *path, int boolean);
   int (*setString)(const RedisJSON *path, const char *str, size_t len);
 
-  void (*replyWithJSON)(struct RedisModuleCtx* ctx, const RedisJSON *json);
+  void (*replyWith)(struct RedisModuleCtx* ctx, const RedisJSON *json);
 } RedisJSONAPI_V1;
 
 // TODO: remove
