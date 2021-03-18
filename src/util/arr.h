@@ -194,11 +194,12 @@ static inline array_t array_ensure_len(array_t arr, size_t len) {
     if (!(*arrpp)) {                                                      \
       *(arrpp) = array_new(T, 1);                                         \
     }                                                                     \
-    if (array_len(*arrpp) <= pos) {                                       \
-      size_t curlen = array_len(*arrpp);                                  \
-      array_hdr(*arrpp)->len = pos + 1;                                   \
-      *arrpp = (T *)array_ensure_cap(*(arrpp), array_hdr(*(arrpp))->len); \
-      memset((T *)*arrpp + curlen, 0, sizeof(T) * ((pos + 1) - curlen));  \
+    const size_t curlen = array_len(*arrpp);                              \
+    if (curlen <= pos) {                                                  \
+      const size_t newlen = pos + 1;                                      \
+      array_hdr(*arrpp)->len = newlen;                                    \
+      *arrpp = (T *)array_ensure_cap(*(arrpp), newlen);                   \
+      memset((T *)*arrpp + curlen, 0, sizeof(T) * (newlen - curlen));     \
     }                                                                     \
     (T *)(*arrpp) + pos;                                                  \
   })
