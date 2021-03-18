@@ -598,14 +598,14 @@ int RSValue_Equal(const RSValue *v1, const RSValue *v2, QueryError *qerr) {
 /* Based on the value type, serialize the value into redis client response */
 int RSValue_SendReply(RedisModuleCtx *ctx, const RSValue *v, int isTyped) {
   v = RSValue_Dereference(v);
-
+  size_t valueStrLen;
+  char *valueCStr;
   switch (v->t) {
     case RSValue_String:
       return RedisModule_ReplyWithStringBuffer(ctx, v->strval.str, v->strval.len);
     case RSValue_RedisString:
     case RSValue_OwnRstring:
-      size_t valueStrLen;
-      const char *valueCStr = RedisModule_StringPtrLen(v->rstrval, &valueStrLen);
+      valueCStr = RedisModule_StringPtrLen(v->rstrval, &valueStrLen);
       return RedisModule_ReplyWithStringBuffer(ctx, valueCStr, valueStrLen);
     case RSValue_Number: {
       char buf[128] = {0};
