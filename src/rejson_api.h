@@ -15,7 +15,6 @@ typedef enum JSONType {
     JSONType_Object = 4,
     JSONType_Array = 5,
     JSONType_Null = 6,
-    JSONType_Err = 7,
     JSONType__EOF
 } JSONType;
 
@@ -25,7 +24,7 @@ typedef const void *RedisJSON;
 typedef struct RedisJSONAPI_V1 {
   /* RedisJSONKey functions */
   const RedisJSONKey *(*openKey)(struct RedisModuleCtx* ctx, RedisModuleString* key);
-  void (*closeKey)(RedisJSONKey *key);
+  void (*closeKey)(const RedisJSONKey *key);
   
   /* RedisJSON functions
    * Return NULL if path does not exist
@@ -35,7 +34,7 @@ typedef struct RedisJSONAPI_V1 {
                           JSONType *type, size_t *count);
   const RedisJSON *(*getAt)(const RedisJSON *jsonIn, size_t index, 
                             JSONType *type, size_t *count);
-  void (*close)(RedisJSON json);
+  void (*close)(const RedisJSON json);
 
   /* RedisJSON value functions
    * Return REDISMODULE_OK if RedisJSON is of the correct JSONType,

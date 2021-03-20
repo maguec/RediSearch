@@ -95,8 +95,7 @@ static RSLanguage SchemaRule_JsonScore(RedisModuleCtx *ctx, const SchemaRule *ru
   rv = REDISMODULE_OK;
 done:
   if (rv == REDISMODULE_ERR) {
-    RedisModule_Log(NULL, "warning", "invalid field %s for key %s", rule->score_field,
-                                              RedisModule_StringPtrLen(keyName, NULL));
+    RedisModule_Log(NULL, "warning", "invalid field %s for key %s", rule->score_field, keyName);
   }
   if (json) {
     japi->close(json);
@@ -105,13 +104,6 @@ done:
 }
 
 /* For POC only */
-/* this function copies the string */
-static RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type) {
-  size_t len;
-  const char *str = JSON_ToString(ctx, json, type, &len);
-  return RedisModule_CreateString(ctx, str, len);
-}
-
 /* this function does not copies the string */
 static const char *JSON_ToString(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type, size_t *len) {
   // TODO: union
@@ -141,6 +133,12 @@ static const char *JSON_ToString(RedisModuleCtx *ctx, const RedisJSON *json, JSO
   return str;
 }
 
+/* this function copies the string */
+static RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type) {
+  size_t len;
+  const char *str = JSON_ToString(ctx, json, type, &len);
+  return RedisModule_CreateString(ctx, str, len);
+}
 
 int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
   int rv = REDISMODULE_ERR;
@@ -172,8 +170,8 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
     const char *fname = spec->fields[ii].name;
 
     // retrive json pointer
-    json = japi->get(ctx, jsonKey, &type, &count);
-    if (!json) {
+    json = japi->get(jsonKey, fname, &type, &count);
+    if (!json || type == JSONType_Array || type == JSONType_Object) {
       continue;
     }
 
