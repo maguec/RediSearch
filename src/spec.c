@@ -20,6 +20,7 @@
 #include "aggregate/expr/expression.h"
 #include "rules.h"
 #include "dictionary.h"
+#include "doc_types.h"
 
 #define INITIAL_DOC_TABLE_SIZE 1000
 
@@ -27,8 +28,8 @@
 
 static void FieldSpec_RdbLoad(RedisModuleIO *rdb, FieldSpec *f, int encver);
 void IndexSpec_UpdateMatchingWithSchemaRules(IndexSpec *sp, RedisModuleCtx *ctx,
-                                             RedisModuleString *key);
-int IndexSpec_DeleteHash(IndexSpec *spec, RedisModuleCtx *ctx, RedisModuleString *key);
+                                             RedisModuleString *key, DocumentType type);
+int IndexSpec_DeleteDoc(IndexSpec *spec, RedisModuleCtx *ctx, RedisModuleString *key);
 
 void (*IndexSpec_OnCreate)(const IndexSpec *) = NULL;
 const char *(*IndexAlias_GetUserTableName)(RedisModuleCtx *, const char *) = NULL;
@@ -1281,13 +1282,18 @@ static void Indexes_ScanProc(RedisModuleCtx *ctx, RedisModuleString *keyname, Re
     }
   }
 
+  DocumentType type = getDocType(key);
+  if (type == DocumentType_None) {
+    return;
+  }
+
   if (scanner->cancelled) {
     return;
   }
   if (scanner->global) {
-    Indexes_UpdateMatchingWithSchemaRules(ctx, keyname, NULL);
+    Indexes_UpdateMatchingWithSchemaRules(ctx, keyname, type, NULL);
   } else {
-    IndexSpec_UpdateMatchingWithSchemaRules(scanner->spec, ctx, keyname);
+    IndexSpec_UpdateMatchingWithSchemaRules(scanner->spec, ctx, keyname, type);
   }
   ++scanner->scannedKeys;
 }
@@ -1849,7 +1855,7 @@ int IndexSpec_RegisterType(RedisModuleCtx *ctx) {
 
 int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx);
 
-int IndexSpec_UpdateWithHash(IndexSpec *spec, RedisModuleCtx *ctx, RedisModuleString *key) {
+int IndexSpec_UpdateDoc(IndexSpec *spec, RedisModuleCtx *ctx, RedisModuleString *key, DocumentType type) {
   if (!spec->rule) {
     RedisModule_Log(ctx, "warning", "Index spec %s: no rule found", spec->name);
     return REDISMODULE_ERR;
@@ -1857,18 +1863,26 @@ int IndexSpec_UpdateWithHash(IndexSpec *spec, RedisModuleCtx *ctx, RedisModuleSt
 
   RedisSearchCtx sctx = SEARCH_CTX_STATIC(ctx, spec);
   Document doc = {0};
-  Document_Init(&doc, key, 1.0, DEFAULT_LANGUAGE);
+  Document_Init(&doc, key, 1.0, DEFAULT_LANGUAGE, type);
   // if a key does not exit, is not a hash or has no fields in index schema
 
   int rv = REDISMODULE_ERR;
   // TODO: SchemaRuleType_Any
-  if (spec->rule->type == SchemaRuleType_Hash) {
+  switch (type) {
+  case DocumentType_Hash:
     rv = Document_LoadSchemaFieldHash(&doc, &sctx);
-  } else {
+    break;
+  
+  case DocumentType_Json:
     rv = Document_LoadSchemaFieldJson(&doc, &sctx);
+    break;
+  case DocumentType_None:
+    // TODO: consider using getDocType
+    RS_LOG_ASSERT(0, "Should receieve valid type");
   }
+
   if (rv != REDISMODULE_OK) {
-    IndexSpec_DeleteHash(spec, ctx, key);
+    IndexSpec_DeleteDoc(spec, ctx, key);
     Document_Free(&doc);
     return REDISMODULE_ERR;
   }
@@ -1882,7 +1896,7 @@ int IndexSpec_UpdateWithHash(IndexSpec *spec, RedisModuleCtx *ctx, RedisModuleSt
   return REDISMODULE_OK;
 }
 
-int IndexSpec_DeleteHash(IndexSpec *spec, RedisModuleCtx *ctx, RedisModuleString *key) {
+int IndexSpec_DeleteDoc(IndexSpec *spec, RedisModuleCtx *ctx, RedisModuleString *key) {
   RedisSearchCtx sctx = SEARCH_CTX_STATIC(ctx, spec);
 
   // Get the doc ID
@@ -1995,6 +2009,7 @@ SpecOpIndexingCtx *Indexes_FindMatchingSchemaRules(RedisModuleCtx *ctx, RedisMod
       if (!r) {
         // load hash only if required
         r = EvalCtx_Create();
+        // Add support for JSON filter
         EvalCtx_AddHash(r, ctx, keyToReadData);
         RSValue *keyRSV = RS_RedisStringVal(key);
         EvalCtx_Set(r, UNDERSCORE_KEY, keyRSV);
@@ -2043,7 +2058,7 @@ void Indexes_SpecOpsIndexingCtxFree(SpecOpIndexingCtx *specs) {
   rm_free(specs);
 }
 
-void Indexes_UpdateMatchingWithSchemaRules(RedisModuleCtx *ctx, RedisModuleString *key,
+void Indexes_UpdateMatchingWithSchemaRules(RedisModuleCtx *ctx, RedisModuleString *key, DocumentType type,
                                            RedisModuleString **hashFields) {
   SpecOpIndexingCtx *specs = Indexes_FindMatchingSchemaRules(ctx, key, true, NULL);
 
@@ -2051,9 +2066,9 @@ void Indexes_UpdateMatchingWithSchemaRules(RedisModuleCtx *ctx, RedisModuleStrin
     SpecOpCtx *specOp = specs->specsOps + i;
     if (!hashFields || hashFieldChanged(specOp->spec, hashFields)) {
       if (specOp->op == SpecOp_Add) {
-        IndexSpec_UpdateWithHash(specOp->spec, ctx, key);
+        IndexSpec_UpdateDoc(specOp->spec, ctx, key, type);
       } else {
-        IndexSpec_DeleteHash(specOp->spec, ctx, key);
+        IndexSpec_DeleteDoc(specOp->spec, ctx, key);
       }
     }
   }
@@ -2062,7 +2077,7 @@ void Indexes_UpdateMatchingWithSchemaRules(RedisModuleCtx *ctx, RedisModuleStrin
 }
 
 void IndexSpec_UpdateMatchingWithSchemaRules(IndexSpec *sp, RedisModuleCtx *ctx,
-                                             RedisModuleString *key) {
+                                             RedisModuleString *key, DocumentType type) {
   SpecOpIndexingCtx *specs = Indexes_FindMatchingSchemaRules(ctx, key, true, NULL);
   if (!dictFind(specs->specs, sp->name)) {
     goto end;
@@ -2072,9 +2087,9 @@ void IndexSpec_UpdateMatchingWithSchemaRules(IndexSpec *sp, RedisModuleCtx *ctx,
     SpecOpCtx *specOp = specs->specsOps + i;
     if (specOp->spec == sp) {
       if (specOp->op == SpecOp_Add) {
-        IndexSpec_UpdateWithHash(specOp->spec, ctx, key);
+        IndexSpec_UpdateDoc(specOp->spec, ctx, key, type);
       } else {
-        IndexSpec_DeleteHash(specOp->spec, ctx, key);
+        IndexSpec_DeleteDoc(specOp->spec, ctx, key);
       }
     }
   }
@@ -2089,7 +2104,7 @@ void Indexes_DeleteMatchingWithSchemaRules(RedisModuleCtx *ctx, RedisModuleStrin
   for (size_t i = 0; i < array_len(specs->specsOps); ++i) {
     SpecOpCtx *specOp = specs->specsOps + i;
     if (!hashFields || hashFieldChanged(specOp->spec, hashFields)) {
-      IndexSpec_DeleteHash(specOp->spec, ctx, key);
+      IndexSpec_DeleteDoc(specOp->spec, ctx, key);
     }
   }
 
@@ -2119,7 +2134,7 @@ void Indexes_ReplaceMatchingWithSchemaRules(RedisModuleCtx *ctx, RedisModuleStri
       dictDelete(to_specs->specs, spec->name);
       array_del_fast(to_specs->specsOps, index);
     } else {
-      IndexSpec_DeleteHash(spec, ctx, from_key);
+      IndexSpec_DeleteDoc(spec, ctx, from_key);
     }
   }
 
@@ -2133,7 +2148,7 @@ void Indexes_ReplaceMatchingWithSchemaRules(RedisModuleCtx *ctx, RedisModuleStri
       // on the spec from section.
       continue;
     }
-    IndexSpec_UpdateWithHash(specOp->spec, ctx, to_key);
+    IndexSpec_UpdateDoc(specOp->spec, ctx, to_key, getDocTypeFromString(to_key));
   }
   Indexes_SpecOpsIndexingCtxFree(from_specs);
   Indexes_SpecOpsIndexingCtxFree(to_specs);

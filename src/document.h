@@ -54,6 +54,7 @@ typedef struct Document {
   const char *payload;
   size_t payloadSize;
   uint32_t flags;
+  DocumentType type;
 } Document;
 
 /**
@@ -115,7 +116,7 @@ void Document_AddFieldC(Document *d, const char *fieldname, const char *val, siz
  * of the data within the document, call Document_Detach on the document (after
  * calling this function).
  */
-void Document_Init(Document *doc, RedisModuleString *docKey, double score, RSLanguage lang);
+void Document_Init(Document *doc, RedisModuleString *docKey, double score, RSLanguage lang, DocumentType type);
 void Document_SetPayload(Document *doc, const void *payload, size_t n);
 
 /**

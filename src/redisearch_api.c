@@ -130,7 +130,8 @@ RSDoc* RediSearch_CreateDocument(const void* docKey, size_t len, double score, c
   RedisModuleString* docKeyStr = RedisModule_CreateString(NULL, docKey, len);
   RSLanguage language = lang ? RSLanguage_Find(lang) : DEFAULT_LANGUAGE;
   Document* ret = rm_calloc(1, sizeof(*ret));
-  Document_Init(ret, docKeyStr, score, language);
+  // TODO: Should we introduce DocumentType_LLAPI?
+  Document_Init(ret, docKeyStr, score, language, DocumentType_Hash);
   Document_MakeStringsOwner(ret);
   RedisModule_FreeString(RSDummyContext, docKeyStr);
   return ret;

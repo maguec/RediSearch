@@ -258,7 +258,7 @@ static int makeDocumentId(RSAddDocumentCtx *aCtx, RedisSearchCtx *sctx, int repl
   const char *s = RedisModule_StringPtrLen(doc->docKey, &n);
 
   doc->docId =
-      DocTable_Put(table, s, n, doc->score, aCtx->docFlags, doc->payload, doc->payloadSize);
+      DocTable_Put(table, s, n, doc->score, aCtx->docFlags, doc->payload, doc->payloadSize, doc->type);
   if (doc->docId == 0) {
     QueryError_SetError(status, QUERY_EDOCEXISTS, NULL);
     return -1;

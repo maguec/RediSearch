@@ -1,6 +1,7 @@
 #include "config.h"
 #include "notifications.h"
 #include "spec.h"
+#include "doc_types.h"
 
 RedisModuleString *global_RenameFromKey = NULL;
 extern RedisModuleCtx *RSDummyContext;
@@ -118,9 +119,21 @@ int HashNotificationCallback(RedisModuleCtx *ctx, int type, const char *event,
     case hincrby_cmd:
     case hincrbyfloat_cmd:
     case hdel_cmd:
-    case restore_cmd:
+      Indexes_UpdateMatchingWithSchemaRules(ctx, key, DocumentType_Hash, hashFields);
+      if(redisCommand == loaded_cmd){
+        RedisModule_FreeString(ctx, key);
+      }
+      break;
+
     case json_set_cmd: // pass param which will indicate if command is Hash/JSON or generic
-      Indexes_UpdateMatchingWithSchemaRules(ctx, key, hashFields);
+      Indexes_UpdateMatchingWithSchemaRules(ctx, key, DocumentType_Json, hashFields);
+      if(redisCommand == loaded_cmd){
+        RedisModule_FreeString(ctx, key);
+      }
+      break;
+
+    case restore_cmd:
+      Indexes_UpdateMatchingWithSchemaRules(ctx, key, getDocTypeFromString(key), hashFields);
       if(redisCommand == loaded_cmd){
         RedisModule_FreeString(ctx, key);
       }
@@ -135,14 +148,16 @@ int HashNotificationCallback(RedisModuleCtx *ctx, int type, const char *event,
       break;
 
     case change_cmd:
+    // TODO: hash/json
       kp = RedisModule_OpenKey(ctx, key, REDISMODULE_READ);
       if (!kp || RedisModule_KeyType(kp) != REDISMODULE_KEYTYPE_HASH) {
         // in crdt empty key means that key was deleted
+        // TODO:FIX
         Indexes_DeleteMatchingWithSchemaRules(ctx, key, hashFields);
       } else {
         // todo: here we will open the key again, we can optimize it by
         //       somehow passing the key pointer
-        Indexes_UpdateMatchingWithSchemaRules(ctx, key, hashFields);
+        Indexes_UpdateMatchingWithSchemaRules(ctx, key, getDocType(kp), hashFields);
       }
       RedisModule_CloseKey(kp);
       break;

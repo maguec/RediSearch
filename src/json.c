@@ -45,17 +45,18 @@ static RSLanguage SchemaRule_JsonLanguage(RedisModuleCtx *ctx, const SchemaRule 
     goto done;
   }
 
-  JSONType type;
+  char *langStr;
+  /*JSONType type;
   size_t count;
   RedisJSON json = japi->get(jsonKey, rule->lang_field, &type, &count);
   if (!json || type != JSONType_String) {
     goto done;
   }
 
-  char *langStr;
   if (japi->getString(json, &langStr, NULL) != REDISMODULE_OK) {
     goto done;
-  }
+  } */
+  RedisJSON_GetString(jsonKey, rule->lang_field, &langStr, NULL);
   
   lang = RSLanguage_Find(langStr);
   if (lang == RS_LANG_UNSUPPORTED) {
@@ -67,9 +68,9 @@ done:
   if (rv == REDISMODULE_ERR) {
         RedisModule_Log(NULL, "warning", "invalid language for key %s", keyName);
   }
-  if (json) {
-    japi->close(json);
-  }
+  // if (json) {
+  //   japi->close(json);
+  // }
   return lang;
 }
 
@@ -81,25 +82,26 @@ static RSLanguage SchemaRule_JsonScore(RedisModuleCtx *ctx, const SchemaRule *ru
     goto done;
   }
 
-  JSONType type;
-  size_t count;
-  const RedisJSON *json = japi->get(jsonKey, rule->score_field, &type, &count);
-  if (json == NULL || (type != JSONType_Float && type != JSONType_Int)) {
-    goto done;
-  }
-
-  if (japi->getFloat(json, &score) != REDISMODULE_OK) {
-    goto done;
-  }
+  // JSONType type;
+  // size_t count;
+  // const RedisJSON *json = japi->get(jsonKey, rule->score_field, &type, &count);
+  // if (json == NULL || (type != JSONType_Float && type != JSONType_Int)) {
+  //   goto done;
+  // }
+// 
+  // if (japi->getFloat(json, &score) != REDISMODULE_OK) {
+  //   goto done;
+  // }
+  RedisJSON_GetNumeric(jsonKey, rule->score_field, &score);
 
   rv = REDISMODULE_OK;
 done:
   if (rv == REDISMODULE_ERR) {
     RedisModule_Log(NULL, "warning", "invalid field %s for key %s", rule->score_field, keyName);
   }
-  if (json) {
-    japi->close(json);
-  }
+  // if (json) {
+  //   japi->close(json);
+  // }
   return score;
 }
 

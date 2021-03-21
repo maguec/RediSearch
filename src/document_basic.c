@@ -4,7 +4,7 @@
 #include "module.h"
 #include "rmutil/rm_assert.h"
 
-void Document_Init(Document *doc, RedisModuleString *docKey, double score, RSLanguage lang) {
+void Document_Init(Document *doc, RedisModuleString *docKey, double score, RSLanguage lang, DocumentType type) {
   doc->docKey = docKey;
   doc->score = (float)score;
   doc->numFields = 0;
@@ -12,6 +12,7 @@ void Document_Init(Document *doc, RedisModuleString *docKey, double score, RSLan
   doc->language = lang ? lang : DEFAULT_LANGUAGE;
   doc->payload = NULL;
   doc->payloadSize = 0;
+  doc->type = type;
 }
 
 static DocumentField *addFieldCommon(Document *d, const char *fieldname, uint32_t typemask) {
