@@ -46,62 +46,33 @@ static RSLanguage SchemaRule_JsonLanguage(RedisModuleCtx *ctx, const SchemaRule 
   }
 
   char *langStr;
-  /*JSONType type;
-  size_t count;
-  RedisJSON json = japi->get(jsonKey, rule->lang_field, &type, &count);
-  if (!json || type != JSONType_String) {
+  if (RedisJSON_GetString(jsonKey, rule->lang_field, &langStr, NULL) != REDISMODULE_OK) {
     goto done;
   }
-
-  if (japi->getString(json, &langStr, NULL) != REDISMODULE_OK) {
-    goto done;
-  } */
-  RedisJSON_GetString(jsonKey, rule->lang_field, &langStr, NULL);
   
   lang = RSLanguage_Find(langStr);
   if (lang == RS_LANG_UNSUPPORTED) {
+    RedisModule_Log(NULL, "warning", "invalid language for key %s", keyName);
+    lang = rule->lang_default;
     goto done;
   }
 
-  rv = REDISMODULE_OK;
 done:
-  if (rv == REDISMODULE_ERR) {
-        RedisModule_Log(NULL, "warning", "invalid language for key %s", keyName);
-  }
-  // if (json) {
-  //   japi->close(json);
-  // }
   return lang;
 }
 
 static RSLanguage SchemaRule_JsonScore(RedisModuleCtx *ctx, const SchemaRule *rule,
                                        const RedisJSONKey *jsonKey, const char *keyName) {
-  int rv = REDISMODULE_ERR;
   double score = rule->score_default;
   if (!rule->score_field) {
     goto done;
   }
 
-  // JSONType type;
-  // size_t count;
-  // const RedisJSON *json = japi->get(jsonKey, rule->score_field, &type, &count);
-  // if (json == NULL || (type != JSONType_Float && type != JSONType_Int)) {
-  //   goto done;
-  // }
-// 
-  // if (japi->getFloat(json, &score) != REDISMODULE_OK) {
-  //   goto done;
-  // }
-  RedisJSON_GetNumeric(jsonKey, rule->score_field, &score);
-
-  rv = REDISMODULE_OK;
-done:
-  if (rv == REDISMODULE_ERR) {
+  if(RedisJSON_GetNumeric(jsonKey, rule->score_field, &score) != REDISMODULE_OK) {
     RedisModule_Log(NULL, "warning", "invalid field %s for key %s", rule->score_field, keyName);
   }
-  // if (json) {
-  //   japi->close(json);
-  // }
+
+done:
   return score;
 }
 
@@ -197,8 +168,7 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
     // TODO: change `fs->text` to support hash or json not RedisModuleString
     doc->fields[oix].text = JSON_ToStringR(ctx, json, type);
     japi->close(json);
-    // doc->fields[oix].text = RedisModule_CreateString(ctx, str, strLen);
-    // RedisModule_FreeString(ctx, fieldText);
+    rv = REDISMODULE_OK;
   }
 
 done:
