@@ -327,7 +327,8 @@ static int getKeyCommon(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOption
     rc = RedisModule_HashGet(*keyobj, REDISMODULE_HASH_CFIELDS, kk->name, &val, NULL);
   } else if (options->dmd->type == DocumentType_Json) {
     // TODO: split implementation as this is wasteful
-    rc = RedisJSON_GetStringR(options->dmd->keyPtr, kk->name, &val);
+
+    rc = JSON_GetStringR_POC(options->sctx->redisCtx, options->dmd->keyPtr, kk->name, &val);
   }
 
   if (rc == REDISMODULE_OK && val != NULL) {

@@ -34,7 +34,7 @@ typedef struct RedisJSONAPI_V1 {
      * Return REDISMODULE_OK if RedisJSON is of the correct JSONType,
      * else REDISMODULE_ERR is returned
      **/
-    int (*getInt)(RedisJSON json, int *integer);
+    int (*getInt)(RedisJSON json, long long *integer);
     int (*getDouble)(RedisJSON json, double *dbl);
     int (*getBoolean)(RedisJSON json, int *boolean);
     int (*getString)(RedisJSON json, char **str, size_t *len);

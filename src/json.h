@@ -14,10 +14,11 @@ extern RedisJSONAPI_V1 *japi;
 int GetJSONAPIs(RedisModuleCtx *ctx, int subscribeToModuleChange);
 int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx);
 
-const char *JSON_ToString(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type, size_t *len);
-RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type);
+const char *JSON_ToString(RedisModuleCtx *ctx, RedisJSON json, JSONType type, size_t *len);
+RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, RedisJSON json, JSONType type);
+int JSON_GetStringR_POC(RedisModuleCtx *ctx, const char *keyName, const char *path, RedisModuleString **val);
 
-static inline int RedisJSON_GetString(RedisJSONKey key, const char *path, char **str, size_t *len){
+static inline int RedisJSON_GetString(RedisJSONKey key, const char *path, char **str, size_t *len) {
   size_t size;
   JSONType type;
   RedisJSON json = japi->get(key, path, &type, &size);
@@ -34,7 +35,7 @@ static inline int RedisJSON_GetNumeric(RedisJSONKey key, const char *path, doubl
   if (type == JSONType_Double) {
     rv = japi->getDouble(json, dbl);
   } else if (type == JSONType_Int) {
-    int integer;
+    long long integer;
     rv = japi->getInt(json, &integer);
     *dbl = integer;
   }

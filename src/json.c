@@ -107,7 +107,7 @@ done:
 
 /* For POC only */
 /* this function does not copies the string */
-const char *JSON_ToString(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type, size_t *len) {
+const char *JSON_ToString(RedisModuleCtx *ctx, RedisJSON json, JSONType type, size_t *len) {
   // TODO: union
   char *str = NULL;
   double dbl;
@@ -136,10 +136,23 @@ const char *JSON_ToString(RedisModuleCtx *ctx, const RedisJSON *json, JSONType t
 }
 
 /* this function copies the string */
-RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type) {
+RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, RedisJSON json, JSONType type) {
   size_t len;
   const char *str = JSON_ToString(ctx, json, type, &len);
   return RedisModule_CreateString(ctx, str, len);
+}
+
+int JSON_GetStringR_POC(RedisModuleCtx *ctx, const char *keyName, const char *path, RedisModuleString **val) {
+  JSONType type;
+  size_t count;
+  RedisModuleString *keyR = RedisModule_CreateString(ctx, keyName, strlen(keyName));
+  RedisJSONKey key = japi->openKey(ctx, keyR);
+  RedisJSON json = japi->get(key, path, &type, &count);
+  *val = JSON_ToStringR(ctx, json, type);
+  japi->close(json);
+  japi->closeKey(key);
+  RedisModule_FreeString(ctx, keyR);
+  return REDISMODULE_OK;
 }
 
 int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
