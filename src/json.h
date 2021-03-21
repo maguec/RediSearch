@@ -14,6 +14,9 @@ extern RedisJSONAPI_V1 *japi;
 int GetJSONAPIs(RedisModuleCtx *ctx, int subscribeToModuleChange);
 int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx);
 
+const char *JSON_ToString(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type, size_t *len);
+RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type);
+
 static inline int RedisJSON_GetString(RedisJSONKey key, const char *path, char **str, size_t *len){
   size_t size;
   JSONType type;

@@ -107,7 +107,7 @@ done:
 
 /* For POC only */
 /* this function does not copies the string */
-static const char *JSON_ToString(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type, size_t *len) {
+const char *JSON_ToString(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type, size_t *len) {
   // TODO: union
   char *str = NULL;
   double dbl;
@@ -118,15 +118,15 @@ static const char *JSON_ToString(RedisModuleCtx *ctx, const RedisJSON *json, JSO
   case JSONType_String:
     japi->getString(json, &str, len);
     return str;
-  /* TODO:
+  /*
   case JSONType_Bool:
     japi->getBoolean(json, &boolean);
     return boolean ? "1" : "0";
   case JSONType_Int:
     japi->getBoolean(json, &integer);
     return integer;
-  case JSONType_Float:
-    japi->getFloat(json, &dbl);
+  case JSONType_Double:
+    japi->getDouble(json, &dbl);
     return dbl;
   */
   default:
@@ -136,7 +136,7 @@ static const char *JSON_ToString(RedisModuleCtx *ctx, const RedisJSON *json, JSO
 }
 
 /* this function copies the string */
-static RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type) {
+RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, const RedisJSON *json, JSONType type) {
   size_t len;
   const char *str = JSON_ToString(ctx, json, type, &len);
   return RedisModule_CreateString(ctx, str, len);
