@@ -38,10 +38,9 @@ extern "C" {
 
 typedef struct {
   const char *name;  // Can either be char or RMString
+  const char *path;
+  RedisModuleString *text;
   FieldType indexAs;
-  // TODO: union??
-  RedisModuleString *text;  // hash
-  // RS_Json *json;            // json
 } DocumentField;
 
 typedef struct Document {

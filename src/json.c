@@ -133,7 +133,6 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
   RedisModuleCtx *ctx = sctx->redisCtx;
   size_t nitems = sctx->spec->numFields;
 
-  RedisModuleString *payload_rms = NULL;
   Document_MakeStringsOwner(doc); // TODO: necessary??
   
   const RedisJSONKey *jsonKey = japi->openKey(ctx, doc->docKey);
@@ -153,23 +152,26 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
   const RedisJSON *json;
   doc->fields = rm_calloc(nitems, sizeof(*doc->fields));
   for (size_t ii = 0; ii < spec->numFields; ++ii) {
-    const char *fname = spec->fields[ii].name;
+    FieldSpec *field = &spec->fields[ii];
+    const char *fpath = field->path;
 
     // retrive json pointer
-    json = japi->get(jsonKey, fname, &type, &count);
+    json = japi->get(jsonKey, fpath, &type, &count);
     if (!json || type == JSONType_Array || type == JSONType_Object) {
       continue;
     }
 
     size_t oix = doc->numFields++;
-    doc->fields[oix].name = rm_strdup(fname);
+    doc->fields[oix].path = rm_strdup(fpath);
+    doc->fields[oix].name = (field->name == field->path) ? doc->fields[oix].path
+                                                         : rm_strdup(field->name);
 
     // on crdt the return value might be the underline value, we must copy it!!!
     // TODO: change `fs->text` to support hash or json not RedisModuleString
     doc->fields[oix].text = JSON_ToStringR(ctx, json, type);
     japi->close(json);
-    rv = REDISMODULE_OK;
   }
+  rv = REDISMODULE_OK;
 
 done:
   if (jsonKey) {

@@ -418,21 +418,36 @@ static int IndexSpec_AddFieldsInternal(IndexSpec *sp, ArgsCursor *ac, QueryError
   FieldSpec *fs = NULL;
 
   while (!AC_IsAtEnd(ac)) {
-    size_t nfieldName;
-    const char *fieldName = AC_GetStringNC(ac, &nfieldName);
-    if (IndexSpec_GetField(sp, fieldName, nfieldName)) {
-      QueryError_SetErrorFmt(status, QUERY_EINVAL, "Duplicate field in schema - %s", fieldName);
-      goto reset;
-    }
-
-    fs = IndexSpec_CreateField(sp, fieldName);
-
     if (sp->numFields == SPEC_MAX_FIELDS) {
       QueryError_SetErrorFmt(status, QUERY_ELIMIT, "Schema is limited to %d fields",
                              SPEC_MAX_FIELDS);
       goto reset;
     }
 
+    // Parse path and name of field
+    size_t pathlen, namelen;
+    const char *fieldPath = AC_GetStringNC(ac, &pathlen);
+    const char *fieldName = fieldPath;
+    if (AC_AdvanceIfMatch(ac, SPEC_AS_STR)) {
+      if (AC_IsAtEnd(ac)) {
+        QueryError_SetError(status, QUERY_EPARSEARGS, SPEC_AS_STR " requires an argument");
+        goto reset;
+      }
+      fieldName = AC_GetStringNC(ac, &namelen);
+    } else {
+      // if `AS` is not used, set the path as name
+      fieldName = fieldPath;
+      namelen= pathlen;
+      fieldPath = NULL;
+    }
+
+
+    if (IndexSpec_GetField(sp, fieldName, namelen)) {
+      QueryError_SetErrorFmt(status, QUERY_EINVAL, "Duplicate field in schema - %s", fieldName);
+      goto reset;
+    }
+
+    fs = IndexSpec_CreateField(sp, fieldName, fieldPath);
     if (!parseFieldSpec(ac, fs, status)) {
       goto reset;
     }
@@ -642,6 +657,12 @@ IndexSpecCache *IndexSpec_BuildSpecCache(const IndexSpec *spec) {
   for (size_t ii = 0; ii < spec->numFields; ++ii) {
     ret->fields[ii] = spec->fields[ii];
     ret->fields[ii].name = rm_strdup(ret->fields[ii].name);
+    // if name & path are pointing to the same string, copy pointer 
+    if (ret->fields[ii].path && (&ret->fields[ii].name != &ret->fields[ii].path)) {
+      ret->fields[ii].path = rm_strdup(ret->fields[ii].path);
+    } else {
+      ret->fields[ii].path = ret->fields[ii].name;
+    }
   }
   return ret;
 }
@@ -651,7 +672,10 @@ void IndexSpecCache_Decref(IndexSpecCache *c) {
     return;
   }
   for (size_t ii = 0; ii < c->nfields; ++ii) {
-    rm_free(c->fields[ii].name);
+    if (c->fields[ii].name != c->fields[ii].path) {
+      rm_free(c->fields[ii].name);
+    }
+    rm_free(c->fields[ii].path);
   }
   rm_free(c->fields);
   rm_free(c);
@@ -1034,12 +1058,13 @@ IndexSpec *NewIndexSpec(const char *name) {
   return sp;
 }
 
-FieldSpec *IndexSpec_CreateField(IndexSpec *sp, const char *name) {
+FieldSpec *IndexSpec_CreateField(IndexSpec *sp, const char *name, const char *path) {
   sp->fields = rm_realloc(sp->fields, sizeof(*sp->fields) * (sp->numFields + 1));
   FieldSpec *fs = sp->fields + sp->numFields;
   memset(fs, 0, sizeof(*fs));
   fs->index = sp->numFields++;
   fs->name = rm_strdup(name);
+  fs->path = (path) ? rm_strdup(path) : fs->name;
   fs->ftId = (t_fieldId)-1;
   fs->ftWeight = 1.0;
   fs->sortIdx = -1;
@@ -1100,10 +1125,8 @@ int bit(t_fieldMask id) {
 // Backwards compat version of load for rdbs with version < 8
 static void FieldSpec_RdbLoadCompat8(RedisModuleIO *rdb, FieldSpec *f, int encver) {
 
-  f->name = RedisModule_LoadStringBuffer(rdb, NULL);
-  char *tmpName = rm_strdup(f->name);
-  RedisModule_Free(f->name);
-  f->name = tmpName;
+  RedisModule_LoadStringBufferAlloc(rdb, f->name, NULL);
+
   // the old versions encoded the bit id of the field directly
   // we convert that to a power of 2
   if (encver < INDEX_MIN_WIDESCHEMA_VERSION) {
@@ -1124,6 +1147,12 @@ static void FieldSpec_RdbLoadCompat8(RedisModuleIO *rdb, FieldSpec *f, int encve
 
 static void FieldSpec_RdbSave(RedisModuleIO *rdb, FieldSpec *f) {
   RedisModule_SaveStringBuffer(rdb, f->name, strlen(f->name) + 1);
+  if (f->path != f->name) {
+    RedisModule_SaveUnsigned(rdb, 1);
+    RedisModule_SaveStringBuffer(rdb, f->path, strlen(f->path) + 1);  
+  } else {
+    RedisModule_SaveUnsigned(rdb, 0);
+  }
   RedisModule_SaveUnsigned(rdb, f->types);
   RedisModule_SaveUnsigned(rdb, f->options);
   RedisModule_SaveSigned(rdb, f->sortIdx);
@@ -1150,10 +1179,14 @@ static void FieldSpec_RdbLoad(RedisModuleIO *rdb, FieldSpec *f, int encver) {
     return FieldSpec_RdbLoadCompat8(rdb, f, encver);
   }
 
-  f->name = RedisModule_LoadStringBuffer(rdb, NULL);
-  char *tmpName = rm_strdup(f->name);
-  RedisModule_Free(f->name);
-  f->name = tmpName;
+  RedisModule_LoadStringBufferAlloc(rdb, f->name, NULL);
+  if (encver >= INDEX_JSON_VERSION) {
+    if (RedisModule_LoadUnsigned(rdb) == 1) {
+      RedisModule_LoadStringBufferAlloc(rdb, f->path, NULL);
+    } else {
+      f->path = f->name;
+    }
+  }
 
   f->types = RedisModule_LoadUnsigned(rdb);
   f->options = RedisModule_LoadUnsigned(rdb);
