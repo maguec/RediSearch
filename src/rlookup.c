@@ -519,12 +519,19 @@ done:
 }
 
 int RLookup_LoadDocument(RLookup *it, RLookupRow *dst, RLookupLoadOptions *options) {
+  int rv = REDISMODULE_ERR;
   if (options->dmd) {
     dst->sv = options->dmd->sortVector;
   }
   if (options->mode & RLOOKUP_LOAD_ALLKEYS) {
-    return RLookup_HGETALL(it, dst, options);
+    if (options->dmd->type == DocumentType_Hash) {
+      rv = RLookup_HGETALL(it, dst, options);
+    } else if (options->dmd->type == DocumentType_Json) {
+      // TODO: this is awful!!
+      rv = REDISMODULE_OK;
+    }
   } else {
-    return loadIndividualKeys(it, dst, options);
+    rv = loadIndividualKeys(it, dst, options);
   }
+  return rv;
 }
