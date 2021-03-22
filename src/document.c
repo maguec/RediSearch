@@ -153,7 +153,7 @@ static int AddDocumentCtx_SetDocument(RSAddDocumentCtx *aCtx, IndexSpec *sp) {
   return 0;
 }
 
-RSAddDocumentCtx *NewAddDocumentCtx(IndexSpec *sp, Document *b, QueryError *status) {
+RSAddDocumentCtx *NewAddDocumentCtx(IndexSpec *sp, Document *doc, QueryError *status) {
 
   if (!actxPool_g) {
     mempool_options mopts = {.initialCap = 16,
@@ -189,7 +189,7 @@ RSAddDocumentCtx *NewAddDocumentCtx(IndexSpec *sp, Document *b, QueryError *stat
   Indexer_Incref(aCtx->indexer);
 
   // Assign the document:
-  aCtx->doc = b;
+  aCtx->doc = doc;
   if (AddDocumentCtx_SetDocument(aCtx, sp) != 0) {
     *status = aCtx->status;
     aCtx->status.detail = NULL;
@@ -212,7 +212,7 @@ RSAddDocumentCtx *NewAddDocumentCtx(IndexSpec *sp, Document *b, QueryError *stat
     aCtx->fwIdx->smap = NULL;
   }
 
-  aCtx->tokenizer = GetTokenizer(b->language, aCtx->fwIdx->stemmer, sp->stopwords);
+  aCtx->tokenizer = GetTokenizer(doc->language, aCtx->fwIdx->stemmer, sp->stopwords);
 //  aCtx->doc->docId = 0;
   return aCtx;
 }

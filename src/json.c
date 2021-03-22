@@ -87,7 +87,9 @@ const char *JSON_ToString(RedisModuleCtx *ctx, RedisJSON json, JSONType type, si
 
   switch (type) {
   case JSONType_String:
-    japi->getString(json, &str, len);
+    if (japi->getString(json, &str, len) != REDISMODULE_OK) {
+      return NULL;
+    }
     return str;
   /*
   case JSONType_Bool:
@@ -114,16 +116,22 @@ RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, RedisJSON json, JSONType 
 }
 
 int JSON_GetStringR_POC(RedisModuleCtx *ctx, const char *keyName, const char *path, RedisModuleString **val) {
+  int rv = REDISMODULE_ERR;
   JSONType type;
   size_t count;
   RedisModuleString *keyR = RedisModule_CreateString(ctx, keyName, strlen(keyName));
   RedisJSONKey key = japi->openKey(ctx, keyR);
+  if (!key) goto done;
   RedisJSON json = japi->get(key, path, &type, &count);
+  if (!json) goto done;
   *val = JSON_ToStringR(ctx, json, type);
-  japi->close(json);
-  japi->closeKey(key);
-  RedisModule_FreeString(ctx, keyR);
-  return REDISMODULE_OK;
+  if (!*val) goto done;
+  rv= REDISMODULE_OK;
+done:
+  if (json) japi->close(json);
+  if (key) japi->closeKey(key);
+  if (keyR) RedisModule_FreeString(ctx, keyR);
+  return rv;
 }
 
 int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
@@ -133,12 +141,11 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
   RedisModuleCtx *ctx = sctx->redisCtx;
   size_t nitems = sctx->spec->numFields;
 
-  Document_MakeStringsOwner(doc); // TODO: necessary??
-  
   const RedisJSONKey *jsonKey = japi->openKey(ctx, doc->docKey);
   if (!jsonKey) {
     goto done;
   }
+  Document_MakeStringsOwner(doc); // TODO: necessary??
 
   const char *keyName = RedisModule_StringPtrLen(doc->docKey, NULL);
   doc->language = SchemaRule_JsonLanguage(sctx->redisCtx, rule, jsonKey, keyName);

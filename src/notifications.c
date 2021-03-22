@@ -62,6 +62,7 @@ int HashNotificationCallback(RedisModuleCtx *ctx, int type, const char *event,
   
   // TODO:clean
   if (!strcmp("json_set", event)) {
+    RedisModule_RetainString(ctx, key);
     Indexes_UpdateMatchingWithSchemaRules(ctx, key, DocumentType_Json, hashFields);
     return REDISMODULE_OK;
   }
@@ -88,7 +89,7 @@ int HashNotificationCallback(RedisModuleCtx *ctx, int type, const char *event,
   else CHECK_CACHED_EVENT(rename_from)
   else CHECK_CACHED_EVENT(rename_to)
   else CHECK_CACHED_EVENT(loaded)
-  else CHECK_CACHED_EVENT(json_set)
+//  else CHECK_CACHED_EVENT(json_set)
   else {
          CHECK_AND_CACHE_EVENT(hset)
     else CHECK_AND_CACHE_EVENT(hmset)
@@ -110,7 +111,7 @@ int HashNotificationCallback(RedisModuleCtx *ctx, int type, const char *event,
     else CHECK_AND_CACHE_EVENT(rename_from)
     else CHECK_AND_CACHE_EVENT(rename_to)
     else CHECK_AND_CACHE_EVENT(loaded)
-    else CHECK_AND_CACHE_EVENT(json_set)
+//    else CHECK_AND_CACHE_EVENT(json_set)
   }
 
   switch (redisCommand) {
@@ -130,11 +131,13 @@ int HashNotificationCallback(RedisModuleCtx *ctx, int type, const char *event,
         RedisModule_FreeString(ctx, key);
       }
       break;
-
+    /* we have strcmp at top
     case json_set_cmd: // pass param which will indicate if command is Hash/JSON or generic
+      // TODO: remove/reconsider
+      RedisModule_RetainString(ctx, key);
       Indexes_UpdateMatchingWithSchemaRules(ctx, key, DocumentType_Json, hashFields);
       break;
-
+    */
     case restore_cmd:
       Indexes_UpdateMatchingWithSchemaRules(ctx, key, getDocTypeFromString(key), hashFields);
       break;

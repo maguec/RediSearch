@@ -32,6 +32,9 @@ static inline int RedisJSON_GetNumeric(RedisJSONKey key, const char *path, doubl
   size_t size;
   JSONType type;
   RedisJSON json = japi->get(key, path, &type, &size);
+  if (!json) {
+    return rv;
+  }
   if (type == JSONType_Double) {
     rv = japi->getDouble(json, dbl);
   } else if (type == JSONType_Int) {
