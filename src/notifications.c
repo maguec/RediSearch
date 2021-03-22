@@ -60,6 +60,12 @@ int HashNotificationCallback(RedisModuleCtx *ctx, int type, const char *event,
                     *restore_event = 0, *expired_event = 0, *evicted_event = 0, *change_event = 0,
                     *loaded_event = 0, *json_set_event = 0;
   
+  // TODO:clean
+  if (!strcmp("json_set", event)) {
+    Indexes_UpdateMatchingWithSchemaRules(ctx, key, DocumentType_Json, hashFields);
+    return REDISMODULE_OK;
+  }
+
   // clang-format off
 
        CHECK_CACHED_EVENT(hset)
@@ -127,16 +133,10 @@ int HashNotificationCallback(RedisModuleCtx *ctx, int type, const char *event,
 
     case json_set_cmd: // pass param which will indicate if command is Hash/JSON or generic
       Indexes_UpdateMatchingWithSchemaRules(ctx, key, DocumentType_Json, hashFields);
-      if(redisCommand == loaded_cmd){
-        RedisModule_FreeString(ctx, key);
-      }
       break;
 
     case restore_cmd:
       Indexes_UpdateMatchingWithSchemaRules(ctx, key, getDocTypeFromString(key), hashFields);
-      if(redisCommand == loaded_cmd){
-        RedisModule_FreeString(ctx, key);
-      }
       break;
 
     case del_cmd:
