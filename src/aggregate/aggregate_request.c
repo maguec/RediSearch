@@ -55,7 +55,7 @@ void FieldList_Free(FieldList *fields) {
   rm_free(fields->fields);
 }
 
-ReturnedField *FieldList_GetCreateField(FieldList *fields, const char *name) {
+ReturnedField *FieldList_GetCreateField(FieldList *fields, const char *name, const char *path) {
   size_t foundIndex = -1;
   for (size_t ii = 0; ii < fields->numFields; ++ii) {
     if (!strcmp(fields->fields[ii].name, name)) {
@@ -66,7 +66,8 @@ ReturnedField *FieldList_GetCreateField(FieldList *fields, const char *name) {
   fields->fields = rm_realloc(fields->fields, sizeof(*fields->fields) * ++fields->numFields);
   ReturnedField *ret = fields->fields + (fields->numFields - 1);
   memset(ret, 0, sizeof *ret);
-  ret->name = name;
+  ret->path = path;
+  ret->name = (name) ? name : path;
   return ret;
 }
 
@@ -391,8 +392,16 @@ static int parseQueryArgs(ArgsCursor *ac, AREQ *req, RSSearchOptions *searchOpts
     }
 
     while (!AC_IsAtEnd(&returnFields)) {
-      const char *name = AC_GetStringNC(&returnFields, NULL);
-      ReturnedField *f = FieldList_GetCreateField(&req->outFields, name);
+      const char *path = AC_GetStringNC(&returnFields, NULL);
+      const char *name = NULL;
+      if (AC_AdvanceIfMatch(&returnFields, SPEC_AS_STR)) {
+        int rv = AC_GetString(&returnFields, &name, NULL, 0);
+        if (rv != AC_OK) {
+          QERR_MKBADARGS_FMT(status, "RETURN path AS name - must be accompanied with NAME");
+          return REDISMODULE_ERR;
+        }
+      }
+      ReturnedField *f = FieldList_GetCreateField(&req->outFields, name, path);
       f->explicitReturn = 1;
     }
   }
@@ -992,7 +1001,7 @@ int buildOutputPipeline(AREQ *req, QueryError *status) {
     // Go through all the fields and ensure that each one exists in the lookup stage
     for (size_t ii = 0; ii < req->outFields.numFields; ++ii) {
       const ReturnedField *rf = req->outFields.fields + ii;
-      RLookupKey *lk = RLookup_GetKey(lookup, rf->name, RLOOKUP_F_NOINCREF | RLOOKUP_F_OCREAT);
+      RLookupKey *lk = RLookup_GetKey(lookup, rf->path, RLOOKUP_F_NOINCREF | RLOOKUP_F_OCREAT);
       if (!lk) {
         // TODO: this is a dead code
         QueryError_SetErrorFmt(status, QUERY_ENOPROPKEY, "Property '%s' not loaded or in schema",
@@ -1014,7 +1023,7 @@ int buildOutputPipeline(AREQ *req, QueryError *status) {
     RLookup *lookup = AGPLN_GetLookup(pln, NULL, AGPLN_GETLOOKUP_LAST);
     for (size_t ii = 0; ii < req->outFields.numFields; ++ii) {
       ReturnedField *ff = req->outFields.fields + ii;
-      RLookupKey *kk = RLookup_GetKey(lookup, ff->name, 0);
+      RLookupKey *kk = RLookup_GetKey(lookup, ff->path, 0);
       if (!kk) {
         QueryError_SetErrorFmt(status, QUERY_ENOPROPKEY, "No such property `%s`", ff->name);
         goto error;
