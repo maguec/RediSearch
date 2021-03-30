@@ -46,6 +46,9 @@ typedef enum {
   /* Profile command */
   QEXEC_F_PROFILE = 0x8000,
   QEXEC_F_PROFILE_LIMITED = 0x10000,
+  
+  /* No-count allows for quicker query's on ranges or prefix */
+  QEXEC_F_FIRST = 0x20000,
 
 } QEFlags;
 

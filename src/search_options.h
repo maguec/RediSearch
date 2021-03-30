@@ -98,6 +98,10 @@ typedef struct {
     const char **infields;
     size_t ninfields;
   } legacy;
+
+  // reduces the number of iterators to scan
+  size_t first;
+  int direction;
 } RSSearchOptions;
 
 static inline void RSSearchOptions_Init(RSSearchOptions *options) {

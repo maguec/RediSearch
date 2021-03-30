@@ -515,6 +515,8 @@ static IndexIterator *Query_EvalNumericNode(QueryEvalCtx *q, QueryNumericNode *n
     return NULL;
   }
 
+  node->nf->first = q->opts->first;
+  // node->nf->direction = q->opts->direction;
   return NewNumericFilterIterator(q->sctx, node->nf, q->conc, INDEXFLD_T_NUMERIC);
 }
 

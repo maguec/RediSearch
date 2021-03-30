@@ -42,9 +42,18 @@ static inline int NumericRange_Contains(NumericRange *n, double min, double max)
 }
 
 /* Returns 1 if there is any overlap between the range and min/max */
-int NumericRange_Overlaps(NumericRange *n, double min, double max) {
+static inline int NumericRange_Overlaps(NumericRange *n, double min, double max) {
   if (!n) return 0;
   int rc = (min >= n->minVal && min <= n->maxVal) || (max >= n->minVal && max <= n->maxVal);
+  // printf("range %f..%f, min %f max %f, overlaps? %d\n", n->minVal, n->maxVal, min, max, rc);
+  return rc;
+}
+
+
+/* Returns 1 if there is any overlap between the range and min/max */
+static inline int NumericRange_Intersects(NumericRange *n, double min, double max) {
+  if (!n) return 0;
+  int rc = (n->minVal >= min && n->minVal <= max) || (n->maxVal >= min && n->maxVal <= max);
   // printf("range %f..%f, min %f max %f, overlaps? %d\n", n->minVal, n->maxVal, min, max, rc);
   return rc;
 }
@@ -248,20 +257,40 @@ void __recursiveAddRange(Vector *v, NumericRangeNode *n, double min, double max)
   }
 }
 
+/* Recursively add nodes at the edge of the range. */
+void __recursiveAddEdge(Vector *v, NumericRangeNode *n, const NumericFilter *f, size_t *first) {
+  if (*first >= f->first) return;
+
+  if (f->direction == 0) {
+    if (n->left) __recursiveAddEdge(v, n->left, f, first);
+
+    // TODO: ensure NumericRangeNode_IsLeaf(n)
+    // Add range to vector
+    if (n->range) {
+      if (NumericRange_Intersects(n->range, f->min, f->max)) {
+        Vector_Push(v, n->range); 
+        *first += n->range->entries->numDocs;
+      }
+    }
+    
+    if (n->right) __recursiveAddEdge(v, n->right, f, first);
+  }
+}
+
+
+
 /* Find the numeric ranges that fit the range we are looking for. We try to minimize the number of
  * nodes we'll later need to union */
-Vector *NumericRangeNode_FindRange(NumericRangeNode *n, double min, double max) {
+Vector *NumericRangeTree_Find(NumericRangeTree *t, const NumericFilter *f) {
 
   Vector *leaves = NewVector(NumericRange *, 8);
-  __recursiveAddRange(leaves, n, min, max);
-  // printf("Found %zd ranges for %f...%f\n", leaves->top, min, max);
-  // for (int i = 0; i < leaves->top; i++) {
-  //   NumericRange *rng;
-  //   Vector_Get(leaves, i, &rng);
-  //   printf("%f...%f (%f). %d card, %d splitCard\n", rng->minVal, rng->maxVal,
-  //          rng->maxVal - rng->minVal, rng->entries->numDocs, rng->splitCard);
-  // }
-
+  if (f->first == 0) {
+    __recursiveAddRange(leaves, t->root, f->min, f->max);
+  } else {
+    size_t firstCount = 0;
+    __recursiveAddEdge(leaves, t->root, f, &firstCount);
+  }
+  
   return leaves;
 }
 
@@ -317,10 +346,6 @@ NRN_AddRv NumericRangeTree_Add(NumericRangeTree *t, t_docId docId, double value)
   return rv;
 }
 
-Vector *NumericRangeTree_Find(NumericRangeTree *t, double min, double max) {
-  return NumericRangeNode_FindRange(t->root, min, max);
-}
-
 void NumericRangeNode_Traverse(NumericRangeNode *n,
                                void (*callback)(NumericRangeNode *n, void *ctx), void *ctx) {
 
@@ -357,8 +382,7 @@ IndexIterator *NewNumericRangeIterator(const IndexSpec *sp, NumericRange *nr,
  * the filter */
 IndexIterator *createNumericIterator(const IndexSpec *sp, NumericRangeTree *t,
                                      const NumericFilter *f) {
-
-  Vector *v = NumericRangeTree_Find(t, f->min, f->max);
+  Vector *v = NumericRangeTree_Find(t, f);
   if (!v || Vector_Size(v) == 0) {
     if (v) {
       Vector_Free(v);

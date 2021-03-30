@@ -38,8 +38,8 @@ TEST_F(RangeTest, testRangeTree) {
   } rngs[] = {{0, 100}, {10, 1000}, {2500, 3500}, {0, 5000}, {4999, 4999}, {0, 0}};
 
   for (int r = 0; rngs[r].min || rngs[r].max; r++) {
-
-    Vector *v = NumericRangeTree_Find(t, rngs[r].min, rngs[r].max);
+    NumericFilter *nf = NewNumericFilter(rngs[r].min, rngs[r].max, 0, 0);
+    Vector *v = NumericRangeTree_Find(t, nf);
     ASSERT_TRUE(Vector_Size(v) > 0);
     // printf("Got %d ranges for %f..%f...\n", Vector_Size(v), rngs[r].min, rngs[r].max);
     for (int i = 0; i < Vector_Size(v); i++) {

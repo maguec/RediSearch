@@ -149,19 +149,25 @@ static int handleCommonArgs(AREQ *req, ArgsCursor *ac, QueryError *status, int a
                              RSGlobalConfig.maxAggregateResults);
       return ARG_ERROR;
     }
+    // This flag signal union to load min
+    // TODO: ensure error on multiple fields
+    if (AC_AdvanceIfMatch(ac, "FIRST")) {
+      req->reqflags |= QEXEC_F_FIRST;
+      req->searchopts.first = arng->offset + arng->limit;
+    }
   } else if (AC_AdvanceIfMatch(ac, "SORTBY")) {
     PLN_ArrangeStep *arng = AGPLN_GetOrCreateArrangeStep(&req->ap);
     if ((parseSortby(arng, ac, status, req->reqflags & QEXEC_F_IS_SEARCH)) != REDISMODULE_OK) {
       return ARG_ERROR;
     }
-  } else if (AC_AdvanceIfMatch(ac, "TIMEOUT")) {	
-    if (AC_NumRemaining(ac) < 1) {	
-      QueryError_SetError(status, QUERY_EPARSEARGS, "Need argument for TIMEOUT");	
-      return ARG_ERROR;	
-    }	
-    if (AC_GetInt(ac, &req->reqTimeout, AC_F_GE1) != AC_OK) {	
-      QueryError_SetErrorFmt(status, QUERY_EPARSEARGS, "TIMEOUT requires a positive integer");	
-      return ARG_ERROR;	
+  } else if (AC_AdvanceIfMatch(ac, "TIMEOUT")) {
+    if (AC_NumRemaining(ac) < 1) {
+      QueryError_SetError(status, QUERY_EPARSEARGS, "Need argument for TIMEOUT");
+      return ARG_ERROR;
+    }
+    if (AC_GetInt(ac, &req->reqTimeout, AC_F_GE1) != AC_OK) {
+      QueryError_SetErrorFmt(status, QUERY_EPARSEARGS, "TIMEOUT requires a positive integer");
+      return ARG_ERROR;
     }
   } else if (AC_AdvanceIfMatch(ac, "WITHCURSOR")) {
     if (parseCursorSettings(req, ac, status) != REDISMODULE_OK) {
@@ -181,7 +187,8 @@ static int handleCommonArgs(AREQ *req, ArgsCursor *ac, QueryError *status, int a
 static int parseSortby(PLN_ArrangeStep *arng, ArgsCursor *ac, QueryError *status, int isLegacy) {
   // Prevent multiple SORTBY steps
   if (arng->sortKeys != NULL) {
-    QERR_MKBADARGS_FMT(status, "Multiple SORTBY steps are not allowed. Sort multiple fields in a single step");
+    QERR_MKBADARGS_FMT(
+        status, "Multiple SORTBY steps are not allowed. Sort multiple fields in a single step");
     return REDISMODULE_ERR;
   }
 

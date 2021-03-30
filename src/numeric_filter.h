@@ -19,6 +19,9 @@ typedef struct NumericFilter {
   int inclusiveMin;
   int inclusiveMax;
   const void *geoFilter;
+
+  size_t first;
+  int direction;
 } NumericFilter;
 
 NumericFilter *NewNumericFilter(double min, double max, int inclusiveMin, int inclusiveMax);
