@@ -91,58 +91,17 @@ def testFirst(env):
 	env.cmd('FT.CONFIG', 'SET', '_PRINT_PROFILE_CLOCK', 'false')
 	repeat = 1000
 	conn = getConnectionByEnv(env)
-	env.cmd('FT.CREATE', 'idx', 'SCHEMA', 'n', 'NUMERIC', 'SORTABLE')
 	for i in range(repeat):
 		conn.execute_command('HSET', i, 'n', i)
-	
-	res = env.cmd('FT.SEARCH', 'idx', '@n:[0 inf]', 'LIMIT', 0 ,10, 'FIRST', 'NOCONTENT')
-	env.assertEqual(res, [23, '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
+	env.cmd('FT.CREATE', 'idx', 'SCHEMA', 'n', 'NUMERIC', 'SORTABLE')
+	waitForIndex(env, 'idx')
+
+	res = env.cmd('FT.SEARCH', 'idx', '@n:[0 inf]', 'SORTBY', 'n', 'LIMIT', 0 ,10, 'FIRST', 'NOCONTENT')
+	env.assertEqual(res[1:], ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
 	
 	# FT.PROFILE with 'FIRST'
-	res = env.cmd('FT.PROFILE', 'idx', 'SEARCH', 'QUERY', '@n:[0 inf]', 'LIMIT', 0 ,10, 'FIRST', 'NOCONTENT')
-	env.assertEqual(res, [[23, '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-											 [['Total profile time'],
-												['Parsing time'],
-												['Pipeline creation time'],
-												['Iterators profile',
-													['Type', 'UNION', 'Query type', 'NUMERIC', 'Counter', 23, 'Children iterators',
-														['Type', 'NUMERIC', 'Term', '0 - 0.5', 'Counter', 1L, 'Size', 1L],
-														['Type', 'NUMERIC', 'Term', '0.5 - 5', 'Counter', 4L, 'Size', 4L],
-														['Type', 'NUMERIC', 'Term', '5 - 23', 'Counter', 18L, 'Size', 18L]]],
-												['Result processors profile',
-													['Type', 'Index', 'Counter', 23],
-													['Type', 'Scorer', 'Counter', 23],
-													['Type', 'Sorter', 'Counter', 10L]]]])
+	res = env.cmd('FT.PROFILE', 'idx', 'SEARCH', 'QUERY', '@n:[0 inf]', 'SORTBY', 'n', 'LIMIT', 0 ,10, 'FIRST', 'NOCONTENT')
+	env.assertEqual(len(res[1][3]), 2) # title + single iterator since ram=nge contains the first iterator
 
-	# FT.PROFILE without 'FIRST'
-	res = env.cmd('FT.PROFILE', 'idx', 'SEARCH', 'QUERY', '@n:[0 inf]', 'LIMIT', 0 ,10, 'NOCONTENT')
-	env.assertEqual(res, [[1000, '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-											 [['Total profile time'],
-												['Parsing time'],
-												['Pipeline creation time'],
-												['Iterators profile',
-													['Type', 'UNION', 'Query type', 'NUMERIC', 'Counter', 1000, 'Children iterators',
-														['Type', 'NUMERIC', 'Term', '0 - 0.5', 'Counter', 1L, 'Size', 1L],
-														['Type', 'NUMERIC', 'Term', '0.5 - 5', 'Counter', 4L, 'Size', 4L],
-														['Type', 'NUMERIC', 'Term', '5 - 23', 'Counter', 18L, 'Size', 18L],
-														['Type', 'NUMERIC', 'Term', '23 - 97', 'Counter', 74L, 'Size', 74L],
-														['Type', 'NUMERIC', 'Term', '97 - 395', 'Counter', 298L, 'Size', 298L],
-														['Type', 'NUMERIC', 'Term', '395 - 999', 'Counter', 605L, 'Size', 605L]]],
-												['Result processors profile',
-													['Type', 'Index', 'Counter', 1000],
-													['Type', 'Scorer', 'Counter', 1000],
-													['Type', 'Sorter', 'Counter', 10L]]]])
-
-	res = env.cmd('FT.SEARCH', 'idx', '@n:[100 inf]', 'LIMIT', 0 ,10, 'FIRST', 'NOCONTENT')
-	env.assertEqual(res, [295L, '100', '101', '102', '103', '104', '105', '106', '107', '108', '109'])
-
-	print env.cmd('FT.PROFILE', 'idx', 'SEARCH', 'QUERY', '@n:[100 inf]', 'LIMIT', 0 , 10, 'FIRST', 'NOCONTENT')
-	env.assertEqual(res, [[295L, '100', '101', '102', '103', '104', '105', '106', '107', '108', '109'],
-											 [['Total profile time'],
-											  ['Parsing time'],
-												['Pipeline creation time'],
-												['Iterators profile',
-													['Type', 'NUMERIC', 'Term', '97 - 395', 'Counter', 295L, 'Size', 298L]],
-												['Result processors profile', ['Type', 'Index', 'Counter', 295L],
-													['Type', 'Scorer', 'Counter', 295L],
-													['Type', 'Sorter', 'Counter', 10L]]]])
+	res = env.cmd('FT.SEARCH', 'idx', '@n:[100 inf]', 'SORTBY', 'n', 'LIMIT', 0 ,10, 'FIRST', 'NOCONTENT')
+	env.assertEqual(res[1:], ['100', '101', '102', '103', '104', '105', '106', '107', '108', '109'])

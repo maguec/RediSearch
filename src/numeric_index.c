@@ -268,8 +268,10 @@ void __recursiveAddEdge(Vector *v, NumericRangeNode *n, const NumericFilter *f, 
     // Add range to vector
     if (n->range) {
       if (NumericRange_Intersects(n->range, f->min, f->max)) {
-        Vector_Push(v, n->range); 
-        *first += n->range->entries->numDocs;
+        Vector_Push(v, n->range);
+        if (NumericRange_Contained(n->range, f->min, f->max)) {
+          *first += n->range->entries->numDocs;
+        }
       }
     }
     

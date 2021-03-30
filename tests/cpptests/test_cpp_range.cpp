@@ -51,6 +51,7 @@ TEST_F(RangeTest, testRangeTree) {
       ASSERT_FALSE(l->maxVal < rngs[r].min);
     }
     Vector_Free(v);
+    NumericFilter_Free(nf);
   }
   NumericRangeTree_Free(t);
 }
