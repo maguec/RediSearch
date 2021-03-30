@@ -331,20 +331,41 @@ class TestAggregate():
         self.env.assertEqual(exp[1], res[1])
         self.env.assertEqual(exp[2], res[2])
 
-    def testLoadWithDocId(self):
+    def testLoadWithKey(self):
         res = self.env.cmd('ft.aggregate', 'games', '*',
                            'LOAD', '3', '@brand', '@price', '@__key',
                            'SORTBY', 2, '@price', 'DESC',
                            'MAX', 4)
+        # test loading the name of the key
         exp = [3L, ['brand', '', 'price', '759.12', '__key', 'B00006JJIC'], 
                    ['brand', 'Sony', 'price', '695.8', '__key', 'B000F6W1AG']]
         self.env.assertEqual(exp[1], res[1])
         self.env.assertEqual(exp[2], res[2])
 
+        # test filter by the name of the key
         res = self.env.cmd('ft.aggregate', 'games', '*',
                            'LOAD', '3', '@brand', '@price', '@__key',
                            'FILTER', '@__key == "B000F6W1AG"')
         self.env.assertEqual(res[1], ['brand', 'Sony', 'price', '695.8', '__key', 'B000F6W1AG'])
+
+    def testLoadWithDocId(self):
+        res = self.env.cmd('ft.aggregate', 'games', '*',
+                           'LOAD', '3', '@brand', '@price', '@__docid',
+                           'SORTBY', 2, '@price', 'DESC',
+                           'MAX', 4)
+
+        # test loading of docid field
+        exp = [2265L, ['brand', '', 'price', '759.12', '__docid', '170'],
+                      ['brand', 'Sony', 'price', '695.8', '__docid', '413'],
+                      ['brand', '', 'price', '599.99', '__docid', '45'],
+                      ['brand', 'Matias', 'price', '559.99', '__docid', '168']]
+        self.env.assertEqual(exp, res)
+
+        # test filter by docid field
+        res = self.env.cmd('ft.aggregate', 'games', '*',
+                           'LOAD', '3', '@brand', '@price', '@__docid',
+                           'FILTER', '@__docid == "170"')
+        self.env.assertEqual(res, [170L, ['brand', '', 'price', '759.12', '__docid', '170']])
 
     def testLoadImplicit(self):
         # same as previous

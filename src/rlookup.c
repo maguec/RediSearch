@@ -325,11 +325,15 @@ static int getKeyCommon(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOption
   if (rc == REDISMODULE_OK && val != NULL) {
     rsv = hvalToValue(val, kk->fieldtype);
     RedisModule_FreeString(RSDummyContext, val);
+  // checks for @__key
   } else if (!strncmp(kk->name, UNDERSCORE_KEY, strlen(UNDERSCORE_KEY))) {
     RedisModuleString *keyName = RedisModule_CreateString(options->sctx->redisCtx,
                                   options->dmd->keyPtr, strlen(options->dmd->keyPtr));
     rsv = hvalToValue(keyName, RLOOKUP_C_STR);
     RedisModule_FreeString(options->sctx->redisCtx, keyName);
+  // checks for @__docId
+  } else if (!strncmp(kk->name, UNDERSCORE_DOC_ID, strlen(UNDERSCORE_DOC_ID))) {
+    rsv = RS_Int64Val(options->dmd->id);
   } else {
     return REDISMODULE_OK;
   }

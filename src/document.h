@@ -72,6 +72,7 @@ typedef struct Document {
 
 #define UNDERSCORE_KEY "__key"
 #define UNDERSCORE_SCORE "__score"
+#define UNDERSCORE_DOC_ID "__docid"
 #define UNDERSCORE_PAYLOAD "__payload"
 #define UNDERSCORE_LANGUAGE "__language"
 
