@@ -39,7 +39,7 @@ int GetJSONAPIs(RedisModuleCtx *ctx, int subscribeToModuleChange) {
 //---------------------------------------------------------------------------------------------
 
 static RSLanguage SchemaRule_JsonLanguage(RedisModuleCtx *ctx, const SchemaRule *rule,
-                                          const RedisJSONKey *jsonKey, const char *keyName) {
+                                          RedisJSONKey jsonKey, const char *keyName) {
   int rv = REDISMODULE_ERR;
   RSLanguage lang = rule->lang_default;
   if (!rule->lang_field) {
@@ -63,7 +63,7 @@ done:
 }
 
 static RSLanguage SchemaRule_JsonScore(RedisModuleCtx *ctx, const SchemaRule *rule,
-                                       const RedisJSONKey *jsonKey, const char *keyName) {
+                                       RedisJSONKey jsonKey, const char *keyName) {
   double score = rule->score_default;
   if (!rule->score_field) {
     goto done;
@@ -142,7 +142,7 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
   RedisModuleCtx *ctx = sctx->redisCtx;
   size_t nitems = sctx->spec->numFields;
 
-  const RedisJSONKey *jsonKey = japi->openKey(ctx, doc->docKey);
+  RedisJSONKey jsonKey = japi->openKey(ctx, doc->docKey);
   if (!jsonKey) {
     goto done;
   }
@@ -157,7 +157,7 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
 
   size_t count;
   JSONType type;
-  const RedisJSON *json;
+  RedisJSON json = NULL;
   doc->fields = rm_calloc(nitems, sizeof(*doc->fields));
   for (size_t ii = 0; ii < spec->numFields; ++ii) {
     FieldSpec *field = &spec->fields[ii];
@@ -166,6 +166,7 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
     // retrive json pointer
     json = japi->get(jsonKey, fpath, &type, &count);
     if (!json || type == JSONType_Array || type == JSONType_Object) {
+      RedisModule_Log(ctx, "verbose", "Field contains array or object");
       continue;
     }
 
@@ -176,14 +177,21 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
 
     // on crdt the return value might be the underline value, we must copy it!!!
     // TODO: change `fs->text` to support hash or json not RedisModuleString
-    doc->fields[oix].text = JSON_ToStringR(ctx, json, type);
+    if (japi->getRedisModuleString(ctx, json, &doc->fields[oix].text) != REDISMODULE_OK) {
+      RedisModule_Log(ctx, "verbose", "Failed to load value from field %s", fpath);
+      goto done;
+    }
     japi->close(json);
+    json = NULL;
   }
   rv = REDISMODULE_OK;
 
 done:
   if (jsonKey) {
     japi->closeKey(jsonKey);
+  }
+  if (json) {
+    japi->close(json);
   }
   return rv;
 }

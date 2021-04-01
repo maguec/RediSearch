@@ -21,12 +21,15 @@ const char *JSON_ToString(RedisModuleCtx *ctx, RedisJSON json, JSONType type, si
 RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, RedisJSON json, JSONType type);
 int JSON_GetStringR_POC(RedisModuleCtx *ctx, const char *keyName, const char *path, RedisModuleString **val);
 
-/* deprectaed - char string is invalid after path is closed */
 static inline int RedisJSON_GetString(RedisJSONKey key, const char *path, const char **str, size_t *len) {
   size_t size;
   JSONType type;
+  const char *tmpStr;
   RedisJSON json = japi->get(key, path, &type, &size);
-  int rv = japi->getString(json, str, len);
+  int rv = japi->getString(json, &tmpStr, len);
+  if (rv == REDISMODULE_OK) {
+    *str = rm_strndup(tmpStr, *len);
+  }
   japi->close(json);
   return rv;
 }

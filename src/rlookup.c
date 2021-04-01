@@ -335,6 +335,7 @@ static int getKeyCommon(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOption
     rc = RedisModule_HashGet(*keyobj, REDISMODULE_HASH_CFIELDS, kk->name, &val, NULL);
   } else if (options->dmd->type == DocumentType_Json) {
     // TODO: split implementation as this is wasteful
+    //rc = RedisJSON_GetRedisModuleString
     rc = JSON_GetStringR_POC(options->sctx->redisCtx, options->dmd->keyPtr, kk->name, &val);
   }
 
@@ -534,7 +535,7 @@ static int RLookup_JSON_GetAll(RLookup *it, RLookupRow *dst, RLookupLoadOptions 
   RedisModuleString *krstr =
       RedisModule_CreateString(ctx, options->dmd->keyPtr, sdslen(options->dmd->keyPtr));
   // TODO: check error
-  RedisJSONKey *jsonKey = japi->openKey(ctx, krstr);
+  RedisJSONKey jsonKey = japi->openKey(ctx, krstr);
   if (!jsonKey) {
     goto done;
   }
