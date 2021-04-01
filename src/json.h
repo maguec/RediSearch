@@ -26,6 +26,9 @@ static inline int RedisJSON_GetString(RedisJSONKey key, const char *path, const 
   JSONType type;
   const char *tmpStr;
   RedisJSON json = japi->get(key, path, &type, &size);
+  if (!json) {
+    return REDISMODULE_ERR;
+  }
   int rv = japi->getString(json, &tmpStr, len);
   if (rv == REDISMODULE_OK) {
     *str = rm_strndup(tmpStr, *len);
@@ -48,20 +51,13 @@ static inline void RedisJSON_FreeRedisModuleString(RedisJSONKey key, RedisModule
 }
 
 static inline int RedisJSON_GetNumeric(RedisJSONKey key, const char *path, double *dbl){
-  int rv = REDISMODULE_ERR;
   size_t size;
   JSONType type;
   RedisJSON json = japi->get(key, path, &type, &size);
   if (!json) {
-    return rv;
+    return REDISMODULE_ERR;
   }
-  if (type == JSONType_Double) {
-    rv = japi->getDouble(json, dbl);
-  } else if (type == JSONType_Int) {
-    long long integer;
-    rv = japi->getInt(json, &integer);
-    *dbl = integer;
-  }
+  int rv = japi->getDouble(json, dbl);
   japi->close(json);
   return rv;
 }

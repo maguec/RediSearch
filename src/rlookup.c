@@ -295,7 +295,7 @@ static RSValue *replyElemToValue(RedisModuleCallReply *rep, RLookupCoerceType ot
   }
 }
 
-static int getKeyCommon(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOptions *options,
+static int getKeyCommonHash(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOptions *options,
                         RedisModuleKey **keyobj) {
   if (!options->noSortables && (kk->flags & RLOOKUP_F_SVSRC)) {
     // No need to "write" this key. It's always implicitly loaded!
@@ -331,13 +331,9 @@ static int getKeyCommon(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOption
     if (strncmp(kk->name, UNDERSCORE_KEY, strlen(UNDERSCORE_KEY))) {
       return REDISMODULE_OK;
     }
-  } else if (options->dmd->type == DocumentType_Hash) {
-    rc = RedisModule_HashGet(*keyobj, REDISMODULE_HASH_CFIELDS, kk->name, &val, NULL);
-  } else if (options->dmd->type == DocumentType_Json) {
-    // TODO: split implementation as this is wasteful
-    //rc = RedisJSON_GetRedisModuleString
-    rc = JSON_GetStringR_POC(options->sctx->redisCtx, options->dmd->keyPtr, kk->name, &val);
   }
+
+  rc = RedisModule_HashGet(*keyobj, REDISMODULE_HASH_CFIELDS, kk->name, &val, NULL);
 
   if (rc == REDISMODULE_OK && val != NULL) {
     rsv = hvalToValue(val, kk->fieldtype);
@@ -357,14 +353,80 @@ static int getKeyCommon(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOption
   return REDISMODULE_OK;
 }
 
+
+static int getKeyCommonJSON(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOptions *options,
+                        RedisJSONKey *keyobj) {
+  if (!options->noSortables && (kk->flags & RLOOKUP_F_SVSRC)) {
+    // No need to "write" this key. It's always implicitly loaded!
+    return REDISMODULE_OK;
+  }
+
+  // In this case, the flag must be obtained via HGET
+  if (!*keyobj) {
+    RedisModuleCtx *ctx = options->sctx->redisCtx;
+    RedisModuleString *keyName =
+        RedisModule_CreateString(ctx, options->dmd->keyPtr, strlen(options->dmd->keyPtr));
+    *keyobj = japi->openKey(ctx, keyName);
+    RedisModule_FreeString(ctx, keyName);
+    if (!*keyobj) {
+      QueryError_SetCode(options->status, QUERY_ENODOC);
+      return REDISMODULE_ERR;
+    }
+    /* this is taken care by japi->openKey
+    if (RedisModule_KeyType(*keyobj) !=) {
+      QueryError_SetCode(options->status, QUERY_EREDISKEYTYPE);
+      return REDISMODULE_ERR;
+    } */
+  }
+
+  // Get the actual hash value
+  int rc = REDISMODULE_ERR;
+  RedisModuleString *val = NULL;
+  RSValue *rsv = NULL;
+
+  // field name should be translated to a path
+  // TODO: consider better solution for faster
+  const FieldSpec *fs = IndexSpec_GetField(options->sctx->spec, kk->name, strlen(kk->name));
+  if (!fs) { // No matching field
+    if (strncmp(kk->name, UNDERSCORE_KEY, strlen(UNDERSCORE_KEY))) {
+      return REDISMODULE_OK;
+    }
+  } 
+  rc = RedisJSON_GetRedisModuleString(*keyobj, kk->name, &val);
+  //rc = JSON_GetStringR_POC(options->sctx->redisCtx, options->dmd->keyPtr, kk->name, &val);
+
+  if (rc == REDISMODULE_OK && val != NULL) {
+    rsv = hvalToValue(val, kk->fieldtype);
+    RedisModule_FreeString(RSDummyContext, val);
+  } else if (!strncmp(kk->name, UNDERSCORE_KEY, strlen(UNDERSCORE_KEY))) {
+    RedisModuleString *keyName = RedisModule_CreateString(options->sctx->redisCtx,
+                                  options->dmd->keyPtr, strlen(options->dmd->keyPtr));
+    rsv = hvalToValue(val, kk->fieldtype);
+    RedisModule_FreeString(RSDummyContext, val);  
+  } else {
+    return REDISMODULE_OK;
+  }
+
+  // Value has a reference count of 1
+  RLookup_WriteKey(kk, dst, rsv);
+  RSValue_Decref(rsv);
+  return REDISMODULE_OK;
+}
+
+typedef int (*GetKeyFunc)(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOptions *options,
+                          void **keyobj);
+
+
 static int loadIndividualKeys(RLookup *it, RLookupRow *dst, RLookupLoadOptions *options) {
   // Load the document from the schema. This should be simple enough...
-  RedisModuleKey *key = NULL;  // This is populated by getKeyCommon; we free it at the end
+  void *key = NULL;  // This is populated by getKeyCommon; we free it at the end
+  GetKeyFunc getKey = (options->dmd->type == DocumentType_Hash) ? (GetKeyFunc)getKeyCommonHash :
+                                                                  (GetKeyFunc)getKeyCommonJSON;
   int rc = REDISMODULE_ERR;
   if (options->nkeys) {
     for (size_t ii = 0; ii < options->nkeys; ++ii) {
       const RLookupKey *kk = options->keys[ii];
-      if (getKeyCommon(kk, dst, options, &key) != REDISMODULE_OK) {
+      if (getKey(kk, dst, options, &key) != REDISMODULE_OK) {
         goto done;
       }
     }
@@ -380,7 +442,7 @@ static int loadIndividualKeys(RLookup *it, RLookupRow *dst, RLookupLoadOptions *
           continue;
         }
       }
-      if (getKeyCommon(kk, dst, options, &key) != REDISMODULE_OK) {
+      if (getKey(kk, dst, options, &key) != REDISMODULE_OK) {
         goto done;
       }
     }
@@ -389,7 +451,11 @@ static int loadIndividualKeys(RLookup *it, RLookupRow *dst, RLookupLoadOptions *
 
 done:
   if (key) {
-    RedisModule_CloseKey(key);
+    switch (options->dmd->type) {
+    case DocumentType_Hash: RedisModule_CloseKey(key); break;
+    case DocumentType_Json: japi->closeKey(key); break;
+    case DocumentType_None: RS_LOG_ASSERT(1, "placeholder");
+    }
   }
   return rc;
 }
