@@ -525,6 +525,40 @@ done:
   return rc;
 }
 
+
+static int RLookup_JSON_GetAll(RLookup *it, RLookupRow *dst, RLookupLoadOptions *options) {
+  int rc = REDISMODULE_ERR;
+  RedisModuleString *value;
+  
+  RedisModuleCtx *ctx = options->sctx->redisCtx;
+  RedisModuleString *krstr =
+      RedisModule_CreateString(ctx, options->dmd->keyPtr, sdslen(options->dmd->keyPtr));
+  // TODO: check error
+  RedisJSONKey *jsonKey = japi->openKey(ctx, krstr);
+  if (!jsonKey) {
+    goto done;
+  }
+
+  if (RedisJSON_GetRedisModuleString(jsonKey, JSON_ROOT, &value) != REDISMODULE_OK) {
+    goto done;
+  }
+
+  RLookupKey *rlk = RLookup_GetKeyEx(it, JSON_ROOT, strlen(JSON_ROOT), RLOOKUP_F_OCREAT);
+  RSValue *vptr = RS_RedisStringVal(value);
+  RLookup_WriteOwnKey(rlk, dst, vptr);
+
+  rc = REDISMODULE_OK;
+
+done:
+  if (krstr) {
+    RedisModule_FreeString(ctx, krstr);
+  }
+  if (jsonKey) {
+    japi->closeKey(jsonKey);
+  }
+  return rc;
+}
+
 int RLookup_LoadDocument(RLookup *it, RLookupRow *dst, RLookupLoadOptions *options) {
   int rv = REDISMODULE_ERR;
   if (options->dmd) {
@@ -534,8 +568,7 @@ int RLookup_LoadDocument(RLookup *it, RLookupRow *dst, RLookupLoadOptions *optio
     if (options->dmd->type == DocumentType_Hash) {
       rv = RLookup_HGETALL(it, dst, options);
     } else if (options->dmd->type == DocumentType_Json) {
-      // TODO: this is awful!!
-      rv = REDISMODULE_OK;
+      rv = RLookup_JSON_GetAll(it, dst, options);
     }
   } else {
     rv = loadIndividualKeys(it, dst, options);

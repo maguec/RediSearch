@@ -46,7 +46,7 @@ static RSLanguage SchemaRule_JsonLanguage(RedisModuleCtx *ctx, const SchemaRule 
     goto done;
   }
 
-  char *langStr;
+  const char *langStr;
   if (RedisJSON_GetString(jsonKey, rule->lang_field, &langStr, NULL) != REDISMODULE_OK) {
     goto done;
   }
@@ -81,7 +81,7 @@ done:
 /* this function does not copies the string */
 const char *JSON_ToString(RedisModuleCtx *ctx, RedisJSON json, JSONType type, size_t *len) {
   // TODO: union
-  char *str = NULL;
+  const char *str = NULL;
   double dbl;
   int integer;
   int boolean;

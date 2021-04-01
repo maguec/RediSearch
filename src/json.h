@@ -10,6 +10,9 @@ extern "C" {
 #endif
 
 extern RedisJSONAPI_V1 *japi;
+extern RedisModuleCtx *RSDummyContext;
+
+#define JSON_ROOT "$"
 
 int GetJSONAPIs(RedisModuleCtx *ctx, int subscribeToModuleChange);
 int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx);
@@ -18,13 +21,27 @@ const char *JSON_ToString(RedisModuleCtx *ctx, RedisJSON json, JSONType type, si
 RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, RedisJSON json, JSONType type);
 int JSON_GetStringR_POC(RedisModuleCtx *ctx, const char *keyName, const char *path, RedisModuleString **val);
 
-static inline int RedisJSON_GetString(RedisJSONKey key, const char *path, char **str, size_t *len) {
+/* deprectaed - char string is invalid after path is closed */
+static inline int RedisJSON_GetString(RedisJSONKey key, const char *path, const char **str, size_t *len) {
   size_t size;
   JSONType type;
   RedisJSON json = japi->get(key, path, &type, &size);
   int rv = japi->getString(json, str, len);
   japi->close(json);
   return rv;
+}
+
+static inline int RedisJSON_GetRedisModuleString(RedisJSONKey key, const char *path, RedisModuleString **rstr) {
+  size_t size;
+  JSONType type;
+  RedisJSON json = japi->get(key, path, &type, &size);
+  int rv = japi->getRedisModuleString(RSDummyContext, json, rstr);
+  japi->close(json);
+  return rv;
+}
+
+static inline void RedisJSON_FreeRedisModuleString(RedisJSONKey key, RedisModuleString *rstr) {
+  RedisModule_FreeString(RSDummyContext, rstr);
 }
 
 static inline int RedisJSON_GetNumeric(RedisJSONKey key, const char *path, double *dbl){
