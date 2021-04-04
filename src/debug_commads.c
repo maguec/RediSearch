@@ -277,7 +277,7 @@ DEBUG_COMMAND(IdToDocId) {
     goto end;
   }
   RSDocumentMetadata *doc = DocTable_Get(&sctx->spec->docs, id);
-  if (!doc || (doc->flags & Document_Deleted)) {
+  if (!doc) {
     RedisModule_ReplyWithError(sctx->redisCtx, "document was removed");
   } else {
     RedisModule_ReplyWithStringBuffer(sctx->redisCtx, doc->keyPtr, strlen(doc->keyPtr));
@@ -534,9 +534,6 @@ end:
 static void replyDocFlags(const RSDocumentMetadata *dmd, RedisModuleCtx *ctx) {
   char buf[1024] = {0};
   sprintf(buf, "(0x%x):", dmd->flags);
-  if (dmd->flags & Document_Deleted) {
-    strcat(buf, "Deleted,");
-  }
   if (dmd->flags & Document_HasPayload) {
     strcat(buf, "HasPayload,");
   }

@@ -459,7 +459,7 @@ int RediSearch_QueryNodeType(QueryNode* qn) {
 const void* RediSearch_ResultsIteratorNext(RS_ApiIter* iter, IndexSpec* sp, size_t* len) {
   while (iter->internal->Read(iter->internal->ctx, &iter->res) != INDEXREAD_EOF) {
     const RSDocumentMetadata* md = DocTable_Get(&sp->docs, iter->res->docId);
-    if (md == NULL || ((md)->flags & Document_Deleted)) {
+    if (md == NULL) {
       continue;
     }
     iter->lastmd = md;

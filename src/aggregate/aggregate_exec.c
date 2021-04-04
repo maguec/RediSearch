@@ -39,6 +39,7 @@ static size_t serializeResult(AREQ *req, RedisModuleCtx *outctx, const SearchRes
   const RSDocumentMetadata *dmd = r->dmd;
   size_t count = 0;
 
+  // TODO: check
   if (dmd && (options & QEXEC_F_IS_SEARCH)) {
     size_t n;
     const char *s = DMD_KeyPtrLen(dmd, &n);

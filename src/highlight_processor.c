@@ -298,6 +298,7 @@ static int hlpNext(ResultProcessor *rbase, SearchResult *r) {
   size_t numIovsArr = 0;
   const FieldList *fields = hlp->fields;
   RSDocumentMetadata *dmd = r->dmd;
+  // TODO: possibly load from DocTable since we don't load on rpidx any more.
   if (!dmd) {
     return RS_RESULT_OK;
   }

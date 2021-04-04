@@ -66,7 +66,7 @@ int DocTable_Exists(const DocTable *t, t_docId docId) {
   }
   DLLIST2_FOREACH(it, &chain->lroot) {
     const RSDocumentMetadata *md = DLLIST2_ITEM(it, RSDocumentMetadata, llnode);
-    if (md->id == docId && !(md->flags & Document_Deleted)) {
+    if (md->id == docId) {
       return 1;
     }
   }
@@ -320,8 +320,6 @@ RSDocumentMetadata *DocTable_Pop(DocTable *t, const char *s, size_t n) {
       return NULL;
     }
 
-    md->flags |= Document_Deleted;
-
     DocTable_DmdUnchain(t, md);
     DocIdMap_Delete(&t->dim, s, n);
     --t->size;
@@ -441,7 +439,7 @@ void DocTable_LegacyRdbLoad(DocTable *t, RedisModuleIO *rdb, int encver) {
     dmd->payload = NULL;
     // read payload if set
     if ((dmd->flags & Document_HasPayload)) {
-      if (!(dmd->flags & Document_Deleted)) {
+      if (1) {
         dmd->payload = rm_malloc(sizeof(RSPayload));
         dmd->payload->data = RedisModule_LoadStringBuffer(rdb, &dmd->payload->len);
         char *buf = rm_malloc(dmd->payload->len);
@@ -450,7 +448,7 @@ void DocTable_LegacyRdbLoad(DocTable *t, RedisModuleIO *rdb, int encver) {
         dmd->payload->data = buf;
         dmd->payload->len--;
         t->memsize += dmd->payload->len + sizeof(RSPayload);
-      } else if ((dmd->flags & Document_Deleted) && (encver == INDEX_MIN_EXPIRE_VERSION)) {
+      } else if ((0) && (encver == INDEX_MIN_EXPIRE_VERSION)) {
         RedisModule_Free(RedisModule_LoadStringBuffer(rdb, NULL));  // throw this string to garbage
       }
     }
@@ -469,7 +467,7 @@ void DocTable_LegacyRdbLoad(DocTable *t, RedisModuleIO *rdb, int encver) {
       RedisModule_Free(tmp);
     }
 
-    if (dmd->flags & Document_Deleted) {
+    if (0) {
       ++deletedElements;
       DMD_Free(dmd);
     } else {
@@ -536,7 +534,7 @@ void DocTable_RdbLoad(DocTable *t, RedisModuleIO *rdb, int encver) {
     dmd->payload = NULL;
     // read payload if set
     if ((dmd->flags & Document_HasPayload)) {
-      if (!(dmd->flags & Document_Deleted)) {
+      if (1) {
         dmd->payload = rm_malloc(sizeof(RSPayload));
         dmd->payload->data = RedisModule_LoadStringBuffer(rdb, &dmd->payload->len);
         char *buf = rm_malloc(dmd->payload->len);
@@ -545,7 +543,7 @@ void DocTable_RdbLoad(DocTable *t, RedisModuleIO *rdb, int encver) {
         dmd->payload->data = buf;
         dmd->payload->len--;
         t->memsize += dmd->payload->len + sizeof(RSPayload);
-      } else if ((dmd->flags & Document_Deleted) && (encver == INDEX_MIN_EXPIRE_VERSION)) {
+      } else if ((0) && (encver == INDEX_MIN_EXPIRE_VERSION)) {
         RedisModule_Free(RedisModule_LoadStringBuffer(rdb, NULL));  // throw this string to garbage
       }
     }
@@ -564,7 +562,7 @@ void DocTable_RdbLoad(DocTable *t, RedisModuleIO *rdb, int encver) {
       RedisModule_Free(tmp);
     }
 
-    if (dmd->flags & Document_Deleted) {
+    if (0) {
       DMD_Free(dmd);
     } else {
       RedisModuleString *keyRedisStr =

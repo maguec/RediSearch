@@ -81,7 +81,9 @@ static int rpidxNext(ResultProcessor *base, SearchResult *res) {
   }
 
   RSIndexResult *r;
-  RSDocumentMetadata *dmd;
+
+  // TODO: Remember to use SCORER DOCSCORE
+  RSDocumentMetadata *dmd = NULL;
   int rc;
 
   // Read from the root filter until we have a valid result
@@ -94,11 +96,9 @@ static int rpidxNext(ResultProcessor *base, SearchResult *res) {
       continue;
     }
 
-    dmd = DocTable_Get(&RP_SPEC(base)->docs, r->docId);
-    if (!dmd || (dmd->flags & Document_Deleted)) {
-      continue;
-    }
     if (isTrimming && RedisModule_ShardingGetKeySlot) {
+      // TODO: Can this be done later?
+      dmd = DocTable_Get(&RP_SPEC(base)->docs, r->docId);
       RedisModuleString *key = RedisModule_CreateString(NULL, dmd->keyPtr, sdslen(dmd->keyPtr));
       int slot = RedisModule_ShardingGetKeySlot(key);
       RedisModule_FreeString(NULL, key);
@@ -118,9 +118,11 @@ static int rpidxNext(ResultProcessor *base, SearchResult *res) {
   res->docId = r->docId;
   res->indexResult = r;
   res->score = 0;
-  res->dmd = dmd;
-  res->rowdata.sv = dmd->sortVector;
-  DMD_Incref(dmd);
+  if (dmd) {
+    res->dmd = dmd;
+    res->rowdata.sv = dmd->sortVector;
+    DMD_Incref(dmd);
+  }
   return RS_RESULT_OK;
 }
 
@@ -193,6 +195,11 @@ static int rpscoreNext(ResultProcessor *base, SearchResult *res) {
     }
 
     // Apply the scoring function
+    if (!res->dmd) {
+      res->dmd = DocTable_Get(&RP_SPEC(base)->docs, res->docId);
+      res->rowdata.sv = res->dmd->sortVector;
+      DMD_Incref(res->dmd);
+    }
     res->score = self->scorer(&self->scorerCtx, res->indexResult, res->dmd, base->parent->minScore);
     if (self->scorerCtx.scrExp) {
       res->scoreExplain = (RSScoreExplain *)self->scorerCtx.scrExp;
@@ -347,7 +354,8 @@ static int rpsortNext_innerLoop(ResultProcessor *rp, SearchResult *r) {
 
   // If the data is not in the sorted vector, lets load it.
   size_t nkeys = self->fieldcmp.nkeys;
-  if (nkeys && h->dmd) {
+  // Or maybe let's not
+  if (0 && nkeys && h->dmd) {
     int nloadKeys = 0;
     const RLookupKey **loadKeys = NULL;
     bool freeKeys = false;
@@ -606,7 +614,7 @@ static int rploaderNext(ResultProcessor *base, SearchResult *r) {
 
     // Current behavior skips entire result if document does not exist.
     // I'm unusre if that's intentional or an oversight.
-    if (r->dmd == NULL || (r->dmd->flags & Document_Deleted)) {
+    if (r->dmd == NULL) {
       return RS_RESULT_OK;
     }
     RedisSearchCtx *sctx = lc->base.parent->sctx;
