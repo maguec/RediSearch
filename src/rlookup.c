@@ -372,11 +372,6 @@ static int getKeyCommonJSON(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOp
       QueryError_SetCode(options->status, QUERY_ENODOC);
       return REDISMODULE_ERR;
     }
-    /* this is taken care by japi->openKey
-    if (RedisModule_KeyType(*keyobj) !=) {
-      QueryError_SetCode(options->status, QUERY_EREDISKEYTYPE);
-      return REDISMODULE_ERR;
-    } */
   }
 
   // Get the actual hash value
@@ -393,7 +388,6 @@ static int getKeyCommonJSON(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOp
     }
   } 
   rc = RedisJSON_GetRedisModuleString(*keyobj, kk->name, &val);
-  //rc = JSON_GetStringR_POC(options->sctx->redisCtx, options->dmd->keyPtr, kk->name, &val);
 
   if (rc == REDISMODULE_OK && val != NULL) {
     rsv = hvalToValue(val, kk->fieldtype);
@@ -591,7 +585,6 @@ done:
   }
   return rc;
 }
-
 
 static int RLookup_JSON_GetAll(RLookup *it, RLookupRow *dst, RLookupLoadOptions *options) {
   int rc = REDISMODULE_ERR;

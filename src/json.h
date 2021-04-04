@@ -41,6 +41,9 @@ static inline int RedisJSON_GetRedisModuleString(RedisJSONKey key, const char *p
   size_t size;
   JSONType type;
   RedisJSON json = japi->get(key, path, &type, &size);
+  if (!json) {
+    return REDISMODULE_ERR;
+  }
   int rv = japi->getRedisModuleString(RSDummyContext, json, rstr);
   japi->close(json);
   return rv;

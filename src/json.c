@@ -77,64 +77,6 @@ done:
   return score;
 }
 
-/* For POC only */
-/* this function does not copies the string */
-const char *JSON_ToString(RedisModuleCtx *ctx, RedisJSON json, JSONType type, size_t *len) {
-  // TODO: union
-  const char *str = NULL;
-  double dbl;
-  int integer;
-  int boolean;
-
-  switch (type) {
-  case JSONType_String:
-    if (japi->getString(json, &str, len) != REDISMODULE_OK) {
-      return NULL;
-    }
-    return str;
-  /*
-  case JSONType_Bool:
-    japi->getBoolean(json, &boolean);
-    return boolean ? "1" : "0";
-  case JSONType_Int:
-    japi->getBoolean(json, &integer);
-    return integer;
-  case JSONType_Double:
-    japi->getDouble(json, &dbl);
-    return dbl;
-  */
-  default:
-    break;
-  }
-  return str;
-}
-
-/* this function copies the string */
-RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, RedisJSON json, JSONType type) {
-  size_t len;
-  const char *str = JSON_ToString(ctx, json, type, &len);
-  return RedisModule_CreateString(ctx, str, len);
-}
-
-int JSON_GetStringR_POC(RedisModuleCtx *ctx, const char *keyName, const char *path, RedisModuleString **val) {
-  int rv = REDISMODULE_ERR;
-  JSONType type;
-  size_t count;
-  RedisModuleString *keyR = RedisModule_CreateString(ctx, keyName, strlen(keyName));
-  RedisJSONKey key = japi->openKey(ctx, keyR);
-  if (!key) goto done;
-  RedisJSON json = japi->get(key, path, &type, &count);
-  if (!json) goto done;
-  *val = JSON_ToStringR(ctx, json, type);
-  if (!*val) goto done;
-  rv= REDISMODULE_OK;
-done:
-  if (json) japi->close(json);
-  if (key) japi->closeKey(key);
-  if (keyR) RedisModule_FreeString(ctx, keyR);
-  return rv;
-}
-
 int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
   int rv = REDISMODULE_ERR;
   IndexSpec *spec = sctx->spec;
