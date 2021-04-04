@@ -54,9 +54,9 @@ SchemaRule *SchemaRule_Create(SchemaRuleArgs *args, IndexSpec *spec, QueryError 
   }
 
   rule->filter_exp_str = args->filter_exp_str ? rm_strdup(args->filter_exp_str) : NULL;
-  rule->lang_field = rm_strdup(args->lang_field ? args->lang_field : UNDERSCORE_LANGUAGE);
-  rule->score_field = rm_strdup(args->score_field ? args->score_field : UNDERSCORE_SCORE);
-  rule->payload_field = rm_strdup(args->payload_field ? args->payload_field : UNDERSCORE_PAYLOAD);
+  rule->lang_field = args->lang_field ? rm_strdup(args->lang_field) : NULL;
+  rule->score_field = args->score_field ? rm_strdup(args->score_field) : NULL;
+  rule->payload_field = args->payload_field ? rm_strdup(args->payload_field) : NULL;
 
   if (args->score_default) {
     double score;
