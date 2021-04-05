@@ -902,7 +902,7 @@ static ResultProcessor *getArrangeRP(AREQ *req, AGGPlan *pln, const PLN_BaseStep
       }
     }
 
-    rp = RPSorter_NewByFields(limit, sortkeys, nkeys, astp->sortAscMap);
+    rp = RPSorter_NewByFields(limit, sortkeys, nkeys, astp->sortAscMap, req->sctx->spec->docs.size, rm_strdup(astp->sortKeys[0]));
     up = pushRP(req, rp, up);
   }
 

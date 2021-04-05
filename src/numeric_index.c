@@ -265,6 +265,47 @@ Vector *NumericRangeNode_FindRange(NumericRangeNode *n, double min, double max) 
   return leaves;
 }
 
+/* Recursively add a node's children to the range. */
+void __recursiveFindEdge(Vector *v, NumericRangeNode *n,  size_t count, size_t *soFar, int direction) {
+  if (!n) return;
+  NumericRangeNode *first, *second;
+
+  if (direction) {
+    first = n->left;
+    second = n->right;
+  } else {
+    first = n->right;
+    second = n->left;
+  }
+  if (first) {
+    __recursiveFindEdge(v, first, count, soFar, direction);
+  }
+  if (*soFar >= count) {
+    return;
+  }
+  if (n->range && NumericRangeNode_IsLeaf(n)) {
+    Vector_Push(v, n->range);
+    *soFar += n->range->entries->numDocs;
+  }
+  if (second) {
+    __recursiveFindEdge(v, second, count, soFar, direction);
+  }
+}
+
+
+/* Find the numeric ranges that fit the range we are looking for. We try to minimize the number of
+ * nodes we'll later need to union */
+Vector *NumericRangeNode_FindEdge(NumericRangeNode *n, size_t count, size_t *soFar, int direction) {
+  Vector *leaves = NewVector(NumericRange *, 8);
+  __recursiveFindEdge(leaves, n, count, soFar, direction);
+  return leaves;
+}
+
+Vector *NumericRangeTree_FindEdge(NumericRangeTree *t, size_t count, int direction) {
+  size_t soFar = 0;
+  return NumericRangeNode_FindEdge(t->root, count, &soFar, direction);
+}
+
 void NumericRangeNode_Free(NumericRangeNode *n) {
   if (!n) return;
   if (n->range) {
@@ -397,6 +438,33 @@ IndexIterator *createNumericIterator(const IndexSpec *sp, NumericRangeTree *t,
   return it;
 }
 
+/* Create a union iterator from the numeric filter, over all the sub-ranges in the tree that fit
+ * the filter */
+IndexIterator *createNumericIteratorForSortBy(const IndexSpec *sp, NumericRangeTree *t, size_t limit) {
+  Vector *v = NumericRangeTree_FindEdge(t, limit, 0);
+  if (!v || Vector_Size(v) == 0) {
+    if (v) {
+      Vector_Free(v);
+    }
+    return NULL;
+  }
+
+  int n = Vector_Size(v);
+  IndexIterator **its = rm_calloc(n, sizeof(IndexIterator *));
+  for (int i = 0; i < n; ++i) {
+    NumericRange *rng;
+    Vector_Get(v, i, &rng);
+    IndexReader *ir = NewNumericReader(sp, rng->entries, NULL, 0, 0);
+    its[i] = NewReadIterator(ir);
+  }
+
+  Vector_Free(v);
+
+  IndexIterator *it = NewUnionIterator(its, n, NULL, 1, 1, QN_NUMERIC, NULL);
+
+  return it;
+}
+
 RedisModuleType *NumericIndexType = NULL;
 #define NUMERICINDEX_KEY_FMT "nm:%s/%s"
 
@@ -455,6 +523,25 @@ struct indexIterator *NewNumericFilterIterator(RedisSearchCtx *ctx, const Numeri
     uc->it = it;
     ConcurrentSearch_AddKey(csx, NumericRangeIterator_OnReopen, uc, rm_free);
   }
+  return it;
+}
+
+struct indexIterator *NewNumericFilterIteratorForSortby(RedisSearchCtx *ctx, const char *name, size_t limit) {
+  RedisModuleString *s = IndexSpec_GetFormattedKeyByName(ctx->spec, name, INDEXFLD_T_NUMERIC);
+  if (!s) {
+    return NULL;
+  }
+  NumericRangeTree *t = openNumericKeysDict(ctx, s, 0);
+  if (!t) {
+    return NULL;
+  }
+
+
+  IndexIterator *it = createNumericIteratorForSortBy(ctx->spec, t, limit);
+  if (!it) {
+    return NULL;
+  }
+
   return it;
 }
 

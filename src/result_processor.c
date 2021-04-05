@@ -298,6 +298,11 @@ typedef struct {
     uint64_t ascendMap;
   } fieldcmp;
 
+  RPIndexIterator *iter;
+  SearchResult **resultsArray;
+  size_t resultsArrayLen;
+  const char *name;
+
 } RPSorter;
 
 /* Yield - pops the current top result from the heap */
@@ -308,7 +313,11 @@ static int rpsortNext_Yield(ResultProcessor *rp, SearchResult *r) {
     SearchResult *sr = mmh_pop_max(self->pq);
     RLookupRow oldrow = r->rowdata;
     *r = *sr;
-
+    if (!r->dmd) {
+      r->dmd = DocTable_Get(&RP_SPEC(rp)->docs, r->docId);
+      r->rowdata.sv = r->dmd->sortVector;
+      DMD_Incref(r->dmd);
+    }
     rm_free(sr);
     RLookupRow_Cleanup(&oldrow);
     return RS_RESULT_OK;
@@ -322,6 +331,9 @@ static void rpsortFree(ResultProcessor *rp) {
     SearchResult_Destroy(self->pooledResult);
     rm_free(self->pooledResult);
   }
+  if (self->resultsArray) rm_free(self->resultsArray);
+  if (self->iter) rm_free(self->iter);
+  if (self->name) rm_free(self->name);
 
   // calling mmh_free will free all the remaining results in the heap, if any
   mmh_free(self->pq);
@@ -346,6 +358,7 @@ static int rpsortNext_innerLoop(ResultProcessor *rp, SearchResult *r) {
   if (rc == RS_RESULT_EOF) {
     // Transition state:
     rp->Next = rpsortNext_Yield;
+    goto queue;
     return rpsortNext_Yield(rp, r);
   } else if (rc != RS_RESULT_OK) {
     // whoops!
@@ -391,40 +404,53 @@ static int rpsortNext_innerLoop(ResultProcessor *rp, SearchResult *r) {
     }
   }
 
-  // If the queue is not full - we just push the result into it
-  // If the pool size is 0 we always do that, letting the heap grow dynamically
-  if (!self->size || self->pq->count + 1 < self->pq->size) {
+  self->resultsArray[self->resultsArrayLen++] = h;
+  return RESULT_QUEUED;
 
-    // copy the index result to make it thread safe - but only if it is pushed to the heap
-    h->indexResult = NULL;
-    mmh_insert(self->pq, h);
-    self->pooledResult = NULL;
-    if (h->score < rp->parent->minScore) {
-      rp->parent->minScore = h->score;
-    }
+queue:
+  IndexSpec *spec = RP_SPEC(rp);
+  double percent = self->resultsArrayLen / spec->docs.size;
 
-  } else {
-    // find the min result
-    SearchResult *minh = mmh_peek_min(self->pq);
+  // TODO: stopped here
+  indexIterator *iter = NewNumericFilterIteratorForSortby(&RP_SPEC(rp), self->name, )
+  ResultProcessor *idxIter = RPIndexIterator_New(root, 0)->base;
+  for (size_t i = 0; i < self->resultsArrayLen; ++i) {
 
-    // update the min score. Irrelevant to SORTBY mode but hardly costs anything...
-    if (minh->score > rp->parent->minScore) {
-      rp->parent->minScore = minh->score;
-    }
+    // If the queue is not full - we just push the result into it
+    // If the pool size is 0 we always do that, letting the heap grow dynamically
+    if (!self->size || self->pq->count + 1 < self->pq->size) {
 
-    // if needed - pop it and insert a new result
-    if (self->cmp(h, minh, self->cmpCtx) > 0) {
+      // copy the index result to make it thread safe - but only if it is pushed to the heap
       h->indexResult = NULL;
-      self->pooledResult = mmh_pop_min(self->pq);
       mmh_insert(self->pq, h);
-      SearchResult_Clear(self->pooledResult);
+      self->pooledResult = NULL;
+      if (h->score < rp->parent->minScore) {
+        rp->parent->minScore = h->score;
+      }
+
     } else {
-      // The current should not enter the pool, so just leave it as is
-      self->pooledResult = h;
-      SearchResult_Clear(self->pooledResult);
+      // find the min result
+      SearchResult *minh = mmh_peek_min(self->pq);
+
+      // update the min score. Irrelevant to SORTBY mode but hardly costs anything...
+      if (minh->score > rp->parent->minScore) {
+        rp->parent->minScore = minh->score;
+      }
+
+      // if needed - pop it and insert a new result
+      if (self->cmp(h, minh, self->cmpCtx) > 0) {
+        h->indexResult = NULL;
+        self->pooledResult = mmh_pop_min(self->pq);
+        mmh_insert(self->pq, h);
+        SearchResult_Clear(self->pooledResult);
+      } else {
+        // The current should not enter the pool, so just leave it as is
+        self->pooledResult = h;
+        SearchResult_Clear(self->pooledResult);
+      }
     }
   }
-  return RESULT_QUEUED;
+  return rpsortNext_Yield(rp, r);
 }
 
 static int rpsortNext_Accum(ResultProcessor *rp, SearchResult *r) {
@@ -442,6 +468,19 @@ static inline int cmpByScore(const void *e1, const void *e2, const void *udata) 
   if (h1->score < h2->score) {
     return -1;
   } else if (h1->score > h2->score) {
+    return 1;
+  }
+  return h1->docId > h2->docId ? -1 : 1;
+}
+
+static int cmpBySingleField(const void *e1, const void *e2, const void *udata) {
+  const SearchResult *h1 = e1, *h2 = e2;
+  double dbl1 = h1->indexResult ? h1->indexResult->num.value : 0;
+  double dbl2 = h2->indexResult ? h2->indexResult->num.value : 0;
+
+  if (dbl1 < dbl2) {
+    return -1;
+  } else if (dbl1 > dbl2) {
     return 1;
   }
   return h1->docId > h2->docId ? -1 : 1;
@@ -497,9 +536,13 @@ static void srDtor(void *p) {
 }
 
 ResultProcessor *RPSorter_NewByFields(size_t maxresults, const RLookupKey **keys, size_t nkeys,
-                                      uint64_t ascmap) {
+                                      uint64_t ascmap, size_t docCount, const char *name) {
   RPSorter *ret = rm_calloc(1, sizeof(*ret));
-  ret->cmp = nkeys ? cmpByFields : cmpByScore;
+  switch (nkeys) {
+    case 0 : ret->cmp = cmpByScore; break;
+    case 1 : ret->cmp = cmpBySingleField; break;
+    default : ret->cmp = cmpByFields; break;
+  }
   ret->cmpCtx = ret;
   ret->fieldcmp.ascendMap = ascmap;
   ret->fieldcmp.keys = keys;
@@ -512,11 +555,16 @@ ResultProcessor *RPSorter_NewByFields(size_t maxresults, const RLookupKey **keys
   ret->base.Next = rpsortNext_Accum;
   ret->base.Free = rpsortFree;
   ret->base.type = RP_SORTER;
+
+  ret->resultsArray = rm_malloc(docCount * sizeof(t_docId));
+  ret->resultsArrayLen = 0;
+  ret->name = name;
+
   return &ret->base;
 }
 
 ResultProcessor *RPSorter_NewByScore(size_t maxresults) {
-  return RPSorter_NewByFields(maxresults, NULL, 0, 0);
+  return RPSorter_NewByFields(maxresults, NULL, 0, 0, 0, NULL);
 }
 
 void SortAscMap_Dump(uint64_t tt, size_t n) {
@@ -614,6 +662,7 @@ static int rploaderNext(ResultProcessor *base, SearchResult *r) {
 
     // Current behavior skips entire result if document does not exist.
     // I'm unusre if that's intentional or an oversight.
+    // TODO: Load
     if (r->dmd == NULL) {
       return RS_RESULT_OK;
     }
