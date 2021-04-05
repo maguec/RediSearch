@@ -29,7 +29,7 @@ def testSearch(env):
     # Index creation (PM-889)
     # FIXME: Enable next line to use a numeric value - currently crash when index is defined with NUMERIC
     #conn.execute_command('FT.CREATE', 'idx1', 'ON', 'JSON', 'SCHEMA', '$.t', 'AS', 'labelT', 'TEXT', '$.n', 'AS', 'labelN', 'NUMERIC')
-    conn.execute_command('FT.CREATE', 'idx1', 'ON', 'JSON', 'SCHEMA', '$.t', 'AS', 'labelT', 'TEXT')
+    conn.execute_command('FT.CREATE', 'idx1', 'ON', 'JSON', 'SCHEMA', '$.t', 'TEXT')
     waitForIndex(env, 'idx1')
     # TODO: Test PREFIX, SORTBY, NOSTEM, Fuzzy, Pagination, Limit 0 0, Score - Or just repeat all search on hash tests?
 
@@ -40,10 +40,12 @@ def testSearch(env):
     plain_val_2 = r'{"t":"riceratops","n":9}'
     env.expect('json.set', 'doc:2', '$', plain_val_2).ok()
     env.expect('json.get', 'doc:2', '$').equal(plain_val_2)
+    env.expect('json.get', 'doc:2', '$.n').equal('9')
 
     # FIXME: Enable next line when json bulk string is printed in the result
     #env.assertEquals(res, [2L, 'doc:1', ['$', plain_val_1], 'doc:2', ['$', plain_val_2]])
     env.expect('ft.search', 'idx1', '*').equal([2L, 'doc:1', ['$', plain_val_1], 'doc:2', ['$', plain_val_2]])
+    env.expect('ft.search', 'idx1', '*', 'RETURN', '1', '$.t').equal([2L, 'doc:1', ['$.t', '"rex"'], 'doc:2', ['$.t', '"riceratops"']])
 
     # FIXME: Enable next line when json bulk string is printed in the result
     env.expect('ft.search', 'idx1', 're*').equal([1L, 'doc:1', ['$', r'{"t":"rex","n":12}']])
@@ -85,13 +87,19 @@ def testSearch(env):
     # If label is defined at schema field - should not be found using a specific 'AS' in the RETURN param in the Search query
     # FIXME: Enable next line when RETURN param supports AS
     #env.expect('ft.search', 'idx1', '*', 'RETURN', '2', 'labelT', '$.t').equal([1L, 'doc:1', ['labelT', r'"hescelosaurus"']])
-    env.expect('ft.search', 'idx1', '*').equal([4L, 'doc:2', [], 'doc:1', [], 'doc:4', [], 'doc:5', []])
+    env.expect('ft.search', 'idx1', '*').equal([4L, 'doc:2', ['$', '{"t":"riceratops","n":9}'],
+                                                    'doc:1', ['$', '{"t":"hescelosaurus","n":12}'],
+                                                    'doc:4', ['$', '{"t":"\xe3\x83\x89\xe3\x83\xa9\xe3\x82\xb4\xe3\x83\xb3","n":5}'],
+                                                    'doc:5', ['$', '{"t":"\xe8\xb8\xaa\xe8\xbf\xb9","n":5}']])
 
+
+    env.expect('ft.search', 'idx1', 'riceratops', 'RETURN', '1', '$').equal([1L, 'doc:2', ['$', '{"t":"riceratops","n":9}']])
+    env.expect('ft.search', 'idx1', 'riceratops', 'RETURN', '1', '$.t').equal([1L, 'doc:2', ['$.t', '"riceratops"']])
 
 def add_values(env, number_of_iterations=1):
     res = env.execute_command('FT.CREATE', 'games', 'ON', 'JSON',
-                        'SCHEMA', '$.title', 'AS', 'titile', 'TEXT', 'SORTABLE',
-                        '$.brand', 'AS', 'brand', 'TEXT', 'NOSTEM', 'SORTABLE',
+                        'SCHEMA', '$.title', 'TEXT', 'SORTABLE',
+                        '$.brand', 'TEXT', 'NOSTEM', 'SORTABLE',
                               )#,'$.description', 'AS', 'description', 'TEXT', 'price', 'NUMERIC',
                         #'categories', 'TAG')
     waitForIndex(env, 'games')
@@ -122,8 +130,9 @@ def testAggregate(env):
            'SORTBY', 2, '@count', 'desc',
            'LIMIT', '0', '5'
            ]
-    env.expect(*cmd).equal([292L, ['brand', '', 'count', '1518'], ['brand', 'mad catz', 'count', '43'],
-                          ['brand', 'generic', 'count', '40'], ['brand', 'steelseries', 'count', '37'],
-                          ['brand', 'logitech', 'count', '35']])
-
+    env.expect(*cmd).equal([292L, ['brand', '""', 'count', '1518'],
+                                  ['brand', '"mad catz"', 'count', '43'],
+                                  ['brand', '"generic"', 'count', '40'],
+                                  ['brand', '"steelseries"', 'count', '37'],
+                                  ['brand', '"logitech"', 'count', '35']])
     # FIXME: Test FT.AGGREGATE params

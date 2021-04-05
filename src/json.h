@@ -29,7 +29,7 @@ static inline int RedisJSON_GetString(RedisJSONKey key, const char *path, const 
   if (!json) {
     return REDISMODULE_ERR;
   }
-  int rv = japi->getString(json, &tmpStr, len);
+  int rv = japi->getString(json, path, &tmpStr, len);
   if (rv == REDISMODULE_OK) {
     *str = rm_strndup(tmpStr, *len);
   }
@@ -44,7 +44,7 @@ static inline int RedisJSON_GetRedisModuleString(RedisJSONKey key, const char *p
   if (!json) {
     return REDISMODULE_ERR;
   }
-  int rv = japi->getRedisModuleString(RSDummyContext, json, rstr);
+  int rv = japi->getRedisModuleString(RSDummyContext, json, path, rstr);
   japi->close(json);
   return rv;
 }
