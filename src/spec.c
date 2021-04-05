@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <ctype.h>
+#include <string.h>
 
 #include "util/logging.h"
 #include "util/misc.h"
@@ -52,11 +53,10 @@ bool isTrimming = false;
 
 static const FieldSpec *getFieldCommon(const IndexSpec *spec, const char *name, size_t len) {
   for (size_t i = 0; i < spec->numFields; i++) {
-    if (len != strlen(spec->fields[i].name)) {
-      continue;
-    }
+    // TODO: spec->fields[0].nameLen;
     const FieldSpec *fs = spec->fields + i;
-    if (!strncmp(fs->name, name, len)) {
+    int tmp = strncmp(fs->name, name, len);
+    if (!tmp) {
       return fs;
     }
   }

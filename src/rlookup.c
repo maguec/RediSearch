@@ -364,10 +364,7 @@ static int getKeyCommonJSON(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOp
   // In this case, the flag must be obtained via HGET
   if (!*keyobj) {
     RedisModuleCtx *ctx = options->sctx->redisCtx;
-    RedisModuleString *keyName =
-        RedisModule_CreateString(ctx, options->dmd->keyPtr, strlen(options->dmd->keyPtr));
-    *keyobj = japi->openKey(ctx, keyName);
-    RedisModule_FreeString(ctx, keyName);
+    *keyobj = japi->openKeyFromStr(ctx, options->dmd->keyPtr);
     if (!*keyobj) {
       QueryError_SetCode(options->status, QUERY_ENODOC);
       return REDISMODULE_ERR;
@@ -591,10 +588,10 @@ static int RLookup_JSON_GetAll(RLookup *it, RLookupRow *dst, RLookupLoadOptions 
   RedisModuleString *value;
   
   RedisModuleCtx *ctx = options->sctx->redisCtx;
-  RedisModuleString *krstr =
-      RedisModule_CreateString(ctx, options->dmd->keyPtr, sdslen(options->dmd->keyPtr));
+  //RedisModuleString *krstr =
+  //    RedisModule_CreateString(ctx, options->dmd->keyPtr, sdslen(options->dmd->keyPtr));
   // TODO: check error
-  RedisJSONKey jsonKey = japi->openKey(ctx, krstr);
+  RedisJSONKey jsonKey = japi->openKeyFromStr(ctx, options->dmd->keyPtr);
   if (!jsonKey) {
     goto done;
   }
@@ -610,9 +607,9 @@ static int RLookup_JSON_GetAll(RLookup *it, RLookupRow *dst, RLookupLoadOptions 
   rc = REDISMODULE_OK;
 
 done:
-  if (krstr) {
-    RedisModule_FreeString(ctx, krstr);
-  }
+  //if (krstr) {
+  //  RedisModule_FreeString(ctx, krstr);
+  //}
   if (jsonKey) {
     japi->closeKey(jsonKey);
   }
