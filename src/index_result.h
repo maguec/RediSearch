@@ -39,6 +39,8 @@ RSIndexResult *NewTokenRecord(RSQueryTerm *term, double weight);
 
 /* Append a child to an aggregate result */
 static inline void AggregateResult_AddChild(RSIndexResult *parent, RSIndexResult *child) {
+  // index POC, no collection of results
+  return;
 
   RSAggregateResult *agg = &parent->agg;
 
