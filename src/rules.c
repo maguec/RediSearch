@@ -201,6 +201,9 @@ done:
 RedisModuleString *SchemaRule_HashPayload(RedisModuleCtx *rctx, const SchemaRule *rule,
                                           RedisModuleKey *key, const char *kname) {
   RedisModuleString *payload_rms = NULL;
+  if (!rule->payload_field) {
+    return NULL;
+  }
   const char *payload_field = rule->payload_field ? rule->payload_field : UNDERSCORE_PAYLOAD;
   int rv = RedisModule_HashGet(key, REDISMODULE_HASH_CFIELDS, payload_field, &payload_rms, NULL);
   if (rv != REDISMODULE_OK) {
