@@ -154,7 +154,7 @@ IndexIterator *NewUnionIterator(IndexIterator **its, int num, DocTable *dt, int 
   IITER_CLEAR_EOF(&ctx->base);
   CURRENT_RECORD(ctx) = NewUnionResult(num, weight);
   ctx->len = 0;
-  ctx->quickExit = quickExit;
+  ctx->quickExit = 1;
   ctx->its = rm_calloc(ctx->num, sizeof(*ctx->its));
   ctx->nexpected = 0;
   ctx->currIt = 0;
