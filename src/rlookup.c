@@ -332,8 +332,8 @@ static int getKeyCommonHash(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOp
       return REDISMODULE_OK;
     }
   }
-
-  rc = RedisModule_HashGet(*keyobj, REDISMODULE_HASH_CFIELDS, kk->name, &val, NULL);
+  const char *path = fs ? fs->path : kk->name;
+  rc = RedisModule_HashGet(*keyobj, REDISMODULE_HASH_CFIELDS, path, &val, NULL);
 
   if (rc == REDISMODULE_OK && val != NULL) {
     rsv = hvalToValue(val, kk->fieldtype);
@@ -383,8 +383,9 @@ static int getKeyCommonJSON(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOp
     if (strncmp(kk->name, UNDERSCORE_KEY, strlen(UNDERSCORE_KEY))) {
       return REDISMODULE_OK;
     }
-  } 
-  rc = RedisJSON_GetRedisModuleString(*keyobj, kk->name, &val);
+  }
+  const char *path = fs ? fs->path : kk->name;
+  rc = japi->getRedisModuleStringFromKey(*keyobj, fs->path, &val);
 
   if (rc == REDISMODULE_OK && val != NULL) {
     rsv = hvalToValue(val, kk->fieldtype);
@@ -393,7 +394,7 @@ static int getKeyCommonJSON(const RLookupKey *kk, RLookupRow *dst, RLookupLoadOp
     RedisModuleString *keyName = RedisModule_CreateString(options->sctx->redisCtx,
                                   options->dmd->keyPtr, strlen(options->dmd->keyPtr));
     rsv = hvalToValue(val, kk->fieldtype);
-    RedisModule_FreeString(RSDummyContext, val);  
+    RedisModule_FreeString(RSDummyContext, val);
   } else {
     return REDISMODULE_OK;
   }
@@ -596,7 +597,7 @@ static int RLookup_JSON_GetAll(RLookup *it, RLookupRow *dst, RLookupLoadOptions 
     goto done;
   }
 
-  if (RedisJSON_GetRedisModuleString(jsonKey, JSON_ROOT, &value) != REDISMODULE_OK) {
+  if (japi->getRedisModuleStringFromKey(jsonKey, JSON_ROOT, &value) != REDISMODULE_OK) {
     goto done;
   }
 

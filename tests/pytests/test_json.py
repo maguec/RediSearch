@@ -125,14 +125,14 @@ def testAggregate(env):
     add_values(env)
 
     cmd = ['ft.aggregate', 'games', '*',
-           'GROUPBY', '1', '@brand',
+           'GROUPBY', '1', '@$.brand',
            'REDUCE', 'count', '0', 'AS', 'count',
            'SORTBY', 2, '@count', 'desc',
            'LIMIT', '0', '5'
            ]
-    env.expect(*cmd).equal([292L, ['brand', '""', 'count', '1518'],
-                                  ['brand', '"mad catz"', 'count', '43'],
-                                  ['brand', '"generic"', 'count', '40'],
-                                  ['brand', '"steelseries"', 'count', '37'],
-                                  ['brand', '"logitech"', 'count', '35']])
+    env.expect(*cmd).equal([292L, ['$.brand', '""', 'count', '1518'],
+                                  ['$.brand', '"mad catz"', 'count', '43'],
+                                  ['$.brand', '"generic"', 'count', '40'],
+                                  ['$.brand', '"steelseries"', 'count', '37'],
+                                  ['$.brand', '"logitech"', 'count', '35']])
     # FIXME: Test FT.AGGREGATE params

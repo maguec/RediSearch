@@ -21,36 +21,15 @@ const char *JSON_ToString(RedisModuleCtx *ctx, RedisJSON json, JSONType type, si
 RedisModuleString *JSON_ToStringR(RedisModuleCtx *ctx, RedisJSON json, JSONType type);
 int JSON_GetStringR_POC(RedisModuleCtx *ctx, const char *keyName, const char *path, RedisModuleString **val);
 
+/* Get a C string back from ReJSON and duplicate it. 
+ * String must be freed */
 static inline int RedisJSON_GetString(RedisJSONKey key, const char *path, const char **str, size_t *len) {
-  size_t size;
-  JSONType type;
   const char *tmpStr;
-  RedisJSON json = japi->get(key, path, &type, &size);
-  if (!json) {
-    return REDISMODULE_ERR;
-  }
-  int rv = japi->getString(json, path, &tmpStr, len);
+  int rv = japi->getStringFromKey(key, path, &tmpStr, len);
   if (rv == REDISMODULE_OK) {
     *str = rm_strndup(tmpStr, *len);
   }
-  japi->close(json);
   return rv;
-}
-
-static inline int RedisJSON_GetRedisModuleString(RedisJSONKey key, const char *path, RedisModuleString **rstr) {
-  size_t size;
-  JSONType type;
-  RedisJSON json = japi->get(key, path, &type, &size);
-  if (!json) {
-    return REDISMODULE_ERR;
-  }
-  int rv = japi->getRedisModuleString(RSDummyContext, json, path, rstr);
-  japi->close(json);
-  return rv;
-}
-
-static inline void RedisJSON_FreeRedisModuleString(RedisJSONKey key, RedisModuleString *rstr) {
-  RedisModule_FreeString(RSDummyContext, rstr);
 }
 
 static inline int RedisJSON_GetNumeric(RedisJSONKey key, const char *path, double *dbl){
