@@ -32,18 +32,6 @@ static inline int RedisJSON_GetString(RedisJSONKey key, const char *path, const 
   return rv;
 }
 
-static inline int RedisJSON_GetNumeric(RedisJSONKey key, const char *path, double *dbl){
-  size_t size;
-  JSONType type;
-  RedisJSON json = japi->get(key, path, &type, &size);
-  if (!json) {
-    return REDISMODULE_ERR;
-  }
-  int rv = japi->getDouble(json, dbl);
-  japi->close(json);
-  return rv;
-}
-
 #ifdef __cplusplus
 }
 #endif

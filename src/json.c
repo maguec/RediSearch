@@ -53,7 +53,6 @@ static RSLanguage SchemaRule_JsonLanguage(RedisModuleCtx *ctx, const SchemaRule 
   
   lang = RSLanguage_Find(langStr);
   if (lang == RS_LANG_UNSUPPORTED) {
-    // RedisModule_Log(NULL, "warning", "invalid language for key %s", keyName);
     lang = rule->lang_default;
     goto done;
   }
@@ -69,8 +68,8 @@ static RSLanguage SchemaRule_JsonScore(RedisModuleCtx *ctx, const SchemaRule *ru
     goto done;
   }
 
-  if(RedisJSON_GetNumeric(jsonKey, rule->score_field, &score) != REDISMODULE_OK) {
-    // RedisModule_Log(NULL, "warning", "invalid field %s for key %s", rule->score_field, keyName);
+  if(japi->getDoubleFromKey(jsonKey, rule->score_field, &score) != REDISMODULE_OK) {
+    RedisModule_Log(NULL, "warning", "invalid field %s for key %s", rule->score_field, keyName);
   }
 
 done:
@@ -106,6 +105,7 @@ int Document_LoadSchemaFieldJson(Document *doc, RedisSearchCtx *sctx) {
     const char *fpath = field->path;
 
     // retrive json pointer
+    // TODO: check option to move to getStringFromKey
     json = japi->get(jsonKey, fpath, &type, &count);
     if (!json || type == JSONType_Array || type == JSONType_Object) {
       RedisModule_Log(ctx, "verbose", "Field contains array or object");
